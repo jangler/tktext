@@ -46,15 +46,29 @@ func TestParse(t *testing.T) {
 func TestIndex(t *testing.T) {
 	text := New()
 	text.Insert("1.0", "hello\nworld")
+
+	// Base line.char indices
 	poscmp(t, text.Index("0.0"), 1, 0)
 	poscmp(t, text.Index("1.3"), 1, 3)
 	poscmp(t, text.Index("1.9"), 1, 5)
 	poscmp(t, text.Index("5.0"), 2, 5)
+
+	// Char/index count modifiers
+	poscmp(t, text.Index("1.1 +0c"), 1, 1)
 	poscmp(t, text.Index("1.0 -5c"), 1, 0)
-	poscmp(t, text.Index("1.0 +3c"), 1, 3)
-	poscmp(t, text.Index("1.0 +6c"), 2, 0)
-	poscmp(t, text.Index("2.0 -1c"), 1, 5)
-	poscmp(t, text.Index("2.0 +9c"), 2, 5)
+	poscmp(t, text.Index("1.0 --1i + 2 chars"), 1, 3)
+	poscmp(t, text.Index("1.0 + 6c"), 2, 0)
+	poscmp(t, text.Index("2.0 +-1 c"), 1, 5)
+	poscmp(t, text.Index("2.0+ 10 indices-1c"), 2, 4)
+
+	// Line count modifiers
+	poscmp(t, text.Index("1.2 + 1 lines"), 2, 2)
+	poscmp(t, text.Index("2.2-0l"), 2, 2)
+	poscmp(t, text.Index("2.2-2l"), 1, 2)
+	poscmp(t, text.Index("1.5+2l"), 2, 5)
+	text.Insert("1.5", " there")
+	poscmp(t, text.Index("1.8+1l"), 2, 5)
+	poscmp(t, text.Index("1.1+1l+10c-1l-1c"), 1, 4)
 }
 
 func TestGet(t *testing.T) {

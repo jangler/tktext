@@ -14,7 +14,7 @@ import (
 )
 
 var lineCharRegexp = regexp.MustCompile(`^(\d+)\.(\w+)`)
-var countRegexp = regexp.MustCompile(`^ ?([+-]) ?(\d+) ?([cil]\w*)`)
+var countRegexp = regexp.MustCompile(`^ ?([+-]) ?(-?\d+) ?([cil]\w*)`)
 
 // Position represents a position in a text buffer.
 type Position struct {
@@ -112,12 +112,8 @@ func (t *TkText) Index(index string) Position {
 	var pos Position
 
 	// Todo list -- don't remove until they're tested
-	// TODO: Chain modifiers
-	// TODO: Figure out what the difference between indices and chars is
-	// TODO: Support +/- lines modifier
 	// TODO: Support linestart, lineend, wordstart, wordend modifiers
 	// TODO: Allow unambiguous abbreviation of modifier words
-	// TODO: Support "base --3 lines"
 
 	// Parse base
 	if lineCharPos, length, err := t.parseLineChar(index); err == nil {
@@ -149,39 +145,54 @@ func (t *TkText) Index(index string) Position {
 		if match := countRegexp.FindStringSubmatch(index); match != nil {
 			// +/- <count> chars/indices/lines
 			index = index[len(match[0]):]
-			if strings.HasPrefix("chars", match[3]) {
-				n, err := strconv.ParseInt(match[1]+match[2], 10, 0)
-				if err != nil {
-					panic(err)
-				}
-				offset := int(n)
-				if offset >= 0 {
+			n, err := strconv.ParseInt(match[2], 10, 0)
+			if err != nil {
+				panic(err)
+			}
+			delta := int(n)
+			if match[1] == "-" {
+				delta = -delta
+			}
+			if strings.HasPrefix("chars", match[3]) ||
+				strings.HasPrefix("indices", match[3]) {
+				if delta >= 0 {
 					line := t.getLine(pos.Line)
 					length := len(line.Value.(string))
-					for offset+pos.Char > length && line.Next() != nil {
-						offset -= length - pos.Char + 1
+					for delta+pos.Char > length && line.Next() != nil {
+						delta -= length - pos.Char + 1
 						pos.Line++
 						pos.Char = 0
 						line = line.Next()
 						length = len(line.Value.(string))
 					}
-					if offset+pos.Char <= length {
-						pos.Char += offset
+					if delta+pos.Char <= length {
+						pos.Char += delta
 					} else {
 						pos.Char = length
 					}
 				} else {
-					offset = -offset
-					for offset > pos.Char && pos.Line > 1 {
-						offset -= pos.Char + 1
+					delta = -delta
+					for delta > pos.Char && pos.Line > 1 {
+						delta -= pos.Char + 1
 						pos.Line--
 						pos.Char = len(t.getLine(pos.Line).Value.(string))
 					}
-					if offset <= pos.Char {
-						pos.Char -= offset
+					if delta <= pos.Char {
+						pos.Char -= delta
 					} else {
 						pos.Char = 0
 					}
+				}
+			} else if strings.HasPrefix("lines", match[3]) {
+				pos.Line += delta
+				if pos.Line < 1 {
+					pos.Line = 1
+				} else if pos.Line > t.lines.Len() {
+					pos.Line = t.lines.Len()
+				}
+				length := len(t.getLine(pos.Line).Value.(string))
+				if pos.Char >= length {
+					pos.Char = length
 				}
 			} else {
 				panic(errors.New("Bad count type: " + match[3]))
