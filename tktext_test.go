@@ -166,10 +166,10 @@ func TestUndo(t *testing.T) {
 	text.MarkSet("mark", "end")
 	text.EditSeparator()
 	if text.EditUndo() {
-		t.Error("EditUndo returned true for new Text")
+		t.Error("EditUndo returned true for new TkText")
 	}
 	if text.EditRedo() {
-		t.Error("EditRedo returned true for new Text")
+		t.Error("EditRedo returned true for new TkText")
 	}
 	text.Insert("1.0", "hello")
 	if !text.EditUndo() {
@@ -218,9 +218,9 @@ func TestUndo(t *testing.T) {
 
 	text.EditReset()
 	if text.EditUndo() {
-		t.Error("EditUndo returned true after Text reset")
+		t.Error("EditUndo returned true after TkText reset")
 	}
 	if text.EditRedo() {
-		t.Error("EditRedo returned true after Text reset")
+		t.Error("EditRedo returned true after TkText reset")
 	}
 }

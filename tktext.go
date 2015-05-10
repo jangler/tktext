@@ -36,16 +36,16 @@ type deleteOp struct {
 
 type separator bool
 
-// Text represents a text buffer.
-type Text struct {
+// TkText represents a text buffer.
+type TkText struct {
 	lines, undoStack, redoStack *list.List
 	marks                       map[string]*Position
 	mutex                       *sync.RWMutex
 }
 
-// New returns an initialized Text object.
-func New() *Text {
-	b := Text{list.New(), list.New(), list.New(), make(map[string]*Position),
+// New returns an initialized TkText object.
+func New() *TkText {
+	b := TkText{list.New(), list.New(), list.New(), make(map[string]*Position),
 		&sync.RWMutex{}}
 	b.lines.PushBack("")
 	return &b
@@ -59,7 +59,7 @@ func mustParseInt(s string) int {
 	return int(n)
 }
 
-func (t *Text) getLine(n int) *list.Element {
+func (t *TkText) getLine(n int) *list.Element {
 	i, line := 1, t.lines.Front()
 	for i < n {
 		line = line.Next()
@@ -69,7 +69,7 @@ func (t *Text) getLine(n int) *list.Element {
 }
 
 // Index returns the row and column numbers of an index into b.
-func (t *Text) Index(index string) Position {
+func (t *TkText) Index(index string) Position {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
@@ -152,7 +152,7 @@ func (t *Text) Index(index string) Position {
 }
 
 // Get returns the text from start to end indices in b.
-func (t *Text) Get(startIndex, endIndex string) *bytes.Buffer {
+func (t *TkText) Get(startIndex, endIndex string) *bytes.Buffer {
 	// Parse indices
 	start := t.Index(startIndex)
 	end := t.Index(endIndex)
@@ -192,7 +192,7 @@ func (t *Text) Get(startIndex, endIndex string) *bytes.Buffer {
 	return &text
 }
 
-func (t *Text) del(startIndex, endIndex string, undo bool) {
+func (t *TkText) del(startIndex, endIndex string, undo bool) {
 	// Parse indices
 	start := t.Index(startIndex)
 	end := t.Index(endIndex)
@@ -279,7 +279,7 @@ func (t *Text) del(startIndex, endIndex string, undo bool) {
 }
 
 // Delete deletes the text from start to end indices in b.
-func (t *Text) Delete(startIndex, endIndex string) {
+func (t *TkText) Delete(startIndex, endIndex string) {
 	if t.Index(startIndex) != t.Index(endIndex) {
 		t.del(startIndex, endIndex, true)
 		t.mutex.Lock()
@@ -288,7 +288,7 @@ func (t *Text) Delete(startIndex, endIndex string) {
 	}
 }
 
-func (t *Text) insert(index, s string, undo bool) {
+func (t *TkText) insert(index, s string, undo bool) {
 	start := t.Index(index)
 
 	t.mutex.Lock()
@@ -359,7 +359,7 @@ func (t *Text) insert(index, s string, undo bool) {
 }
 
 // Insert inserts text at an index in b.
-func (t *Text) Insert(index, s string) {
+func (t *TkText) Insert(index, s string) {
 	if s != "" {
 		t.insert(index, s, true)
 		t.mutex.Lock()
@@ -369,14 +369,14 @@ func (t *Text) Insert(index, s string) {
 }
 
 // Replace replaces the text from start to end indices in b with string s.
-func (t *Text) Replace(startIndex, endIndex, s string) {
+func (t *TkText) Replace(startIndex, endIndex, s string) {
 	t.Delete(startIndex, endIndex)
 	t.Insert(startIndex, s)
 }
 
 // MarkSet associates a name with an index into b. The name must not contain a
 // space character.
-func (t *Text) MarkSet(name, index string) {
+func (t *TkText) MarkSet(name, index string) {
 	pos := t.Index(index)
 	t.mutex.Lock()
 	t.marks[name] = &pos
@@ -384,14 +384,14 @@ func (t *Text) MarkSet(name, index string) {
 }
 
 // MarkUnset removes a mark from b.
-func (t *Text) MarkUnset(name string) {
+func (t *TkText) MarkUnset(name string) {
 	t.mutex.Lock()
 	delete(t.marks, name)
 	t.mutex.Unlock()
 }
 
 // NumLines returns the number of lines of text in the buffer.
-func (t *Text) NumLines() int {
+func (t *TkText) NumLines() int {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 	return t.lines.Len()
@@ -400,7 +400,7 @@ func (t *Text) NumLines() int {
 // EditUndo undoes changes to the buffer until a separator is encountered or
 // the undo stack is empty. Undone changes are pushed onto the redo stack. The
 // given marks are placed at position of the redone operation.
-func (t *Text) EditUndo(marks ...string) bool {
+func (t *TkText) EditUndo(marks ...string) bool {
 	i, loop := 0, true
 	for loop {
 		t.mutex.RLock()
@@ -444,7 +444,7 @@ func (t *Text) EditUndo(marks ...string) bool {
 // EditRedo redoes changes to the buffer until a separator is encountered or
 // the undo stack is empty. Redone changes are pushed onto the undo stack. The
 // given marks are placed at position of the redone operation.
-func (t *Text) EditRedo(marks ...string) bool {
+func (t *TkText) EditRedo(marks ...string) bool {
 	i, loop, redone := 0, true, false
 	for loop {
 		t.mutex.RLock()
@@ -489,7 +489,7 @@ func (t *Text) EditRedo(marks ...string) bool {
 
 // EditSeparator pushes an edit separator onto the undo stack if a separator is
 // not already on top.
-func (t *Text) EditSeparator() {
+func (t *TkText) EditSeparator() {
 	t.mutex.Lock()
 	front := t.undoStack.Front()
 	var sep separator
@@ -505,7 +505,7 @@ func (t *Text) EditSeparator() {
 }
 
 // EditReset clears the buffer's undo and redo stacks.
-func (t *Text) EditReset() {
+func (t *TkText) EditReset() {
 	t.mutex.Lock()
 	t.undoStack.Init()
 	t.redoStack.Init()
