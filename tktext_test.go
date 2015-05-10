@@ -2,9 +2,10 @@ package tktext
 
 import "testing"
 
-func poscmp(t *testing.T, got Position, wantRow, wantCol int) {
-	if wantRow != got.Row || wantCol != got.Col {
-		t.Errorf("got %d.%d, want %d.%d", got.Row, got.Col, wantRow, wantCol)
+func poscmp(t *testing.T, got Position, wantLine, wantChar int) {
+	if wantLine != got.Line || wantChar != got.Char {
+		t.Errorf("got %d.%d, want %d.%d", got.Line, got.Char,
+			wantLine, wantChar)
 	}
 }
 
@@ -28,7 +29,8 @@ func TestNew(t *testing.T) {
 
 func TestParse(t *testing.T) {
 	text := New()
-	strings := []string{"bad", "1.bad"}
+	strings := []string{"bad", "1.bad", "10000000000000000000.1",
+		"1.0+10000000000000000000c", "1.0+1characters", "1.0 bad"}
 	for _, pos := range strings {
 		func() {
 			defer func() {
@@ -48,11 +50,11 @@ func TestIndex(t *testing.T) {
 	poscmp(t, text.Index("1.3"), 1, 3)
 	poscmp(t, text.Index("1.9"), 1, 5)
 	poscmp(t, text.Index("5.0"), 2, 5)
-	poscmp(t, text.Index("1.0 -5"), 1, 0)
-	poscmp(t, text.Index("1.0 +3"), 1, 3)
-	poscmp(t, text.Index("1.0 +6"), 2, 0)
-	poscmp(t, text.Index("2.0 -1"), 1, 5)
-	poscmp(t, text.Index("2.0 +9"), 2, 5)
+	poscmp(t, text.Index("1.0 -5c"), 1, 0)
+	poscmp(t, text.Index("1.0 +3c"), 1, 3)
+	poscmp(t, text.Index("1.0 +6c"), 2, 0)
+	poscmp(t, text.Index("2.0 -1c"), 1, 5)
+	poscmp(t, text.Index("2.0 +9c"), 2, 5)
 }
 
 func TestGet(t *testing.T) {

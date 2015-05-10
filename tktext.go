@@ -13,17 +13,18 @@ import (
 	"sync"
 )
 
-var indexRegexp = regexp.MustCompile(`(\d+)\.(\w+)`)
+var lineCharRegexp = regexp.MustCompile(`^(\d+)\.(\w+)`)
+var countRegexp = regexp.MustCompile(`^ ?([+-]) ?(\d+) ?([cil]\w*)`)
 
 // Position represents a position in a text buffer.
 type Position struct {
-	Row, Col int
+	Line, Char int
 }
 
 // String returns a string representation of the position that can be used as
 // an index in buffer functions.
 func (p Position) String() string {
-	return fmt.Sprintf("%d.%d", p.Row, p.Col)
+	return fmt.Sprintf("%d.%d", p.Line, p.Char)
 }
 
 type insertOp struct {
@@ -51,14 +52,6 @@ func New() *TkText {
 	return &b
 }
 
-func mustParseInt(s string) int {
-	n, err := strconv.ParseInt(s, 10, 0)
-	if err != nil {
-		panic(err)
-	}
-	return int(n)
-}
-
 func (t *TkText) getLine(n int) *list.Element {
 	i, line := 1, t.lines.Front()
 	for i < n {
@@ -68,83 +61,133 @@ func (t *TkText) getLine(n int) *list.Element {
 	return line
 }
 
-// Index returns the row and column numbers of an index into b.
+func (t *TkText) parseLineChar(index string) (Position, int, error) {
+	var pos Position
+
+	// Match <line>.<char> format
+	match := lineCharRegexp.FindStringSubmatch(index)
+	if match == nil {
+		err := errors.New("Bad line.char index: " + index)
+		return Position{}, 0, err
+	}
+
+	// Parse line
+	if line, err := strconv.ParseInt(match[1], 10, 0); err == nil {
+		pos.Line = int(line)
+	} else {
+		return Position{}, 0, err
+	}
+	if pos.Line < 1 {
+		pos.Line = 1
+		pos.Char = 0
+	} else if pos.Line > t.lines.Len() {
+		pos.Line = t.lines.Len()
+		pos.Char = len(t.lines.Back().Value.(string))
+	} else {
+		// Parse char
+		length := len(t.getLine(pos.Line).Value.(string))
+		if match[2] == "end" {
+			pos.Char = length
+		} else {
+			if char, err := strconv.ParseInt(match[2], 10, 0); err == nil {
+				pos.Char = int(char)
+			} else {
+				return Position{}, 0, err
+			}
+			if pos.Char > length {
+				pos.Char = length
+			}
+		}
+	}
+
+	return pos, len(match[0]), nil
+}
+
+// Index parses a string index and returns an equivalent Position. If the index
+// is badly formed, panic.
 func (t *TkText) Index(index string) Position {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
 	var pos Position
-	words := strings.Split(index, " ")
 
-	// Parse initial index
-	if words[0] == "end" {
-		// End keyword
-		pos.Row = t.lines.Len()
-		pos.Col = len(t.lines.Back().Value.(string))
-	} else if markPos, ok := t.marks[words[0]]; ok {
-		// Marks
-		pos.Row = markPos.Row
-		pos.Col = markPos.Col
+	// Todo list -- don't remove until they're tested
+	// TODO: Chain modifiers
+	// TODO: Figure out what the difference between indices and chars is
+	// TODO: Support +/- lines modifier
+	// TODO: Support linestart, lineend, wordstart, wordend modifiers
+	// TODO: Allow unambiguous abbreviation of modifier words
+	// TODO: Support "base --3 lines"
+
+	// Parse base
+	if lineCharPos, length, err := t.parseLineChar(index); err == nil {
+		// <line>.<char>
+		pos = lineCharPos
+		index = index[length:]
+	} else if strings.HasPrefix(index, "end") {
+		// end
+		pos.Line = t.lines.Len()
+		pos.Char = len(t.lines.Back().Value.(string))
+		index = index[3:]
 	} else {
-		// Match "row.col" format
-		matches := indexRegexp.FindStringSubmatch(words[0])
-		if matches == nil {
-			panic(errors.New(fmt.Sprintf("Bad index: %#v", index)))
-		}
-
-		// Parse row
-		pos.Row = mustParseInt(matches[1])
-		if pos.Row < 1 {
-			pos.Row = 1
-			pos.Col = 0
-		} else if pos.Row > t.lines.Len() {
-			pos.Row = t.lines.Len()
-			pos.Col = len(t.lines.Back().Value.(string))
-		} else {
-			// Parse col
-			length := len(t.getLine(pos.Row).Value.(string))
-			if matches[2] == "end" {
-				pos.Col = length
-			} else {
-				pos.Col = mustParseInt(matches[2])
-				if pos.Col > length {
-					pos.Col = length
-				}
+		// <mark>
+		for mark, markPos := range t.marks {
+			if strings.HasPrefix(index, mark) {
+				pos = *markPos
+				index = index[len(mark):]
+				break
 			}
 		}
 	}
 
-	// Parse offsets
-	for _, word := range words[1:] {
-		// Keep in mind that a newline counts as a character
-		offset := mustParseInt(word)
-		if offset >= 0 {
-			line := t.getLine(pos.Row)
-			length := len(line.Value.(string))
-			for offset+pos.Col > length && line.Next() != nil {
-				offset -= length - pos.Col + 1
-				pos.Row++
-				pos.Col = 0
-				line = line.Next()
-				length = len(line.Value.(string))
-			}
-			if offset+pos.Col <= length {
-				pos.Col += offset
+	if pos.Line == 0 {
+		panic(errors.New("Bad index base: " + index))
+	}
+
+	// Parse modifiers
+	for index != "" {
+		if match := countRegexp.FindStringSubmatch(index); match != nil {
+			// +/- <count> chars/indices/lines
+			index = index[len(match[0]):]
+			if strings.HasPrefix("chars", match[3]) {
+				n, err := strconv.ParseInt(match[1]+match[2], 10, 0)
+				if err != nil {
+					panic(err)
+				}
+				offset := int(n)
+				if offset >= 0 {
+					line := t.getLine(pos.Line)
+					length := len(line.Value.(string))
+					for offset+pos.Char > length && line.Next() != nil {
+						offset -= length - pos.Char + 1
+						pos.Line++
+						pos.Char = 0
+						line = line.Next()
+						length = len(line.Value.(string))
+					}
+					if offset+pos.Char <= length {
+						pos.Char += offset
+					} else {
+						pos.Char = length
+					}
+				} else {
+					offset = -offset
+					for offset > pos.Char && pos.Line > 1 {
+						offset -= pos.Char + 1
+						pos.Line--
+						pos.Char = len(t.getLine(pos.Line).Value.(string))
+					}
+					if offset <= pos.Char {
+						pos.Char -= offset
+					} else {
+						pos.Char = 0
+					}
+				}
 			} else {
-				pos.Col = length
+				panic(errors.New("Bad count type: " + match[3]))
 			}
 		} else {
-			offset = -offset
-			for offset > pos.Col && pos.Row > 1 {
-				offset -= pos.Col + 1
-				pos.Row--
-				pos.Col = len(t.getLine(pos.Row).Value.(string))
-			}
-			if offset <= pos.Col {
-				pos.Col -= offset
-			} else {
-				pos.Col = 0
-			}
+			panic(errors.New("Bad index modifier: " + index))
 		}
 	}
 
@@ -162,26 +205,26 @@ func (t *TkText) Get(startIndex, endIndex string) *bytes.Buffer {
 
 	// Find starting line
 	i, line := 1, t.lines.Front()
-	for i < start.Row {
+	for i < start.Line {
 		line = line.Next()
 		i++
 	}
 
 	// Write text to buffer
 	var text bytes.Buffer
-	for i <= end.Row {
-		if i != start.Row {
+	for i <= end.Line {
+		if i != start.Line {
 			text.WriteString("\n")
 		}
 		s := line.Value.(string)
-		if i == start.Row {
-			if i == end.Row {
-				text.WriteString(s[start.Col:end.Col])
+		if i == start.Line {
+			if i == end.Line {
+				text.WriteString(s[start.Char:end.Char])
 			} else {
-				text.WriteString(s[start.Col:])
+				text.WriteString(s[start.Char:])
 			}
-		} else if i == end.Row {
-			text.WriteString(s[:end.Col])
+		} else if i == end.Line {
+			text.WriteString(s[:end.Char])
 		} else {
 			text.WriteString(s)
 		}
@@ -201,27 +244,28 @@ func (t *TkText) del(startIndex, endIndex string, undo bool) {
 
 	// Find starting line
 	i, line := 1, t.lines.Front()
-	for i < start.Row {
+	for i < start.Line {
 		line = line.Next()
 		i++
 	}
 
 	// Delete text
 	b := &bytes.Buffer{}
-	for i <= end.Row {
-		if i == start.Row {
+	for i <= end.Line {
+		if i == start.Line {
 			s := line.Value.(string)
-			if i == end.Row {
-				line.Value = s[:start.Col] + s[end.Col:]
-				b.WriteString(s[start.Col:end.Col])
+			if i == end.Line {
+				line.Value = s[:start.Char] + s[end.Char:]
+				b.WriteString(s[start.Char:end.Char])
 			} else {
-				line.Value = s[:start.Col]
-				b.WriteString(s[start.Col:] + "\n")
+				line.Value = s[:start.Char]
+				b.WriteString(s[start.Char:] + "\n")
 			}
-		} else if i == end.Row {
+		} else if i == end.Line {
 			endLine := line.Next()
-			line.Value = line.Value.(string) + endLine.Value.(string)[end.Col:]
-			b.WriteString(endLine.Value.(string)[:end.Col])
+			line.Value = line.Value.(string) +
+				endLine.Value.(string)[end.Char:]
+			b.WriteString(endLine.Value.(string)[:end.Char])
 			t.lines.Remove(endLine)
 		} else {
 			next := line.Next()
@@ -233,19 +277,19 @@ func (t *TkText) del(startIndex, endIndex string, undo bool) {
 
 	// Update marks
 	for _, pos := range t.marks {
-		if pos.Row == end.Row && pos.Col >= end.Col {
-			pos.Col += start.Col - end.Col
-		} else if pos.Row == start.Row && pos.Col >= start.Col {
-			pos.Col = start.Col
+		if pos.Line == end.Line && pos.Char >= end.Char {
+			pos.Char += start.Char - end.Char
+		} else if pos.Line == start.Line && pos.Char >= start.Char {
+			pos.Char = start.Char
 		}
-		if start.Row != end.Row &&
-			((pos.Row == start.Row && pos.Col > start.Col) ||
-				(pos.Row > start.Row && pos.Row < end.Row) ||
-				(pos.Row == end.Row && pos.Col < end.Col)) {
-			pos.Col = start.Col
+		if start.Line != end.Line &&
+			((pos.Line == start.Line && pos.Char > start.Char) ||
+				(pos.Line > start.Line && pos.Line < end.Line) ||
+				(pos.Line == end.Line && pos.Char < end.Char)) {
+			pos.Char = start.Char
 		}
-		if pos.Row >= end.Row {
-			pos.Row -= end.Row - start.Row
+		if pos.Line >= end.Line {
+			pos.Line -= end.Line - start.Line
 		}
 	}
 
@@ -261,11 +305,11 @@ func (t *TkText) del(startIndex, endIndex string, undo bool) {
 			switch v := front.Value.(type) {
 			case deleteOp:
 				if v.sp == sp {
-					ep = fmt.Sprintf("%s +%d", ep, len(v.s))
+					ep = fmt.Sprintf("%s +%dc", ep, len(v.s))
 					front.Value = deleteOp{sp, ep, v.s + b.String()}
 					collapsed = true
 				} else if v.sp == ep {
-					ep = fmt.Sprintf("%s +%d", ep, len(v.s))
+					ep = fmt.Sprintf("%s +%dc", ep, len(v.s))
 					front.Value = deleteOp{sp, ep, b.String() + v.s}
 					collapsed = true
 				}
@@ -295,7 +339,7 @@ func (t *TkText) insert(index, s string, undo bool) {
 
 	// Find insert index
 	i, line := 1, t.lines.Front()
-	for i < start.Row && line.Next() != nil {
+	for i < start.Line && line.Next() != nil {
 		line = line.Next()
 		i++
 	}
@@ -309,28 +353,28 @@ func (t *TkText) insert(index, s string, undo bool) {
 
 	// Update marks
 	for _, pos := range t.marks {
-		if pos.Row > start.Row {
-			pos.Row += len(lines) - 1
-		} else if pos.Row == start.Row && pos.Col >= start.Col {
-			pos.Row += len(lines) - 1
+		if pos.Line > start.Line {
+			pos.Line += len(lines) - 1
+		} else if pos.Line == start.Line && pos.Char >= start.Char {
+			pos.Line += len(lines) - 1
 			if len(lines) == 1 {
-				pos.Col += len(s)
+				pos.Char += len(s)
 			} else {
-				pos.Col += len(line.Value.(string)) - start.Col
+				pos.Char += len(line.Value.(string)) - start.Char
 			}
 		}
 	}
 
 	// Splice initial line together with inserted lines
-	line.Value = line.Value.(string) + startLine.Value.(string)[start.Col:]
-	startLine.Value = startLine.Value.(string)[:start.Col] +
+	line.Value = line.Value.(string) + startLine.Value.(string)[start.Char:]
+	startLine.Value = startLine.Value.(string)[:start.Char] +
 		t.lines.Remove(startLine.Next()).(string)
 
 	t.mutex.Unlock()
 
 	if undo {
 		sp := start.String()
-		end := t.Index(fmt.Sprintf("%s +%d", start.String(), len(s)))
+		end := t.Index(fmt.Sprintf("%s +%dc", start.String(), len(s)))
 		ep := end.String()
 		t.mutex.Lock()
 		front := t.undoStack.Front()
@@ -343,7 +387,7 @@ func (t *TkText) insert(index, s string, undo bool) {
 					collapsed = true
 				} else if v.sp == sp {
 					t.mutex.Unlock()
-					end = t.Index(fmt.Sprintf("%s +%d", index, len(s+v.s)))
+					end = t.Index(fmt.Sprintf("%s +%dc", index, len(s+v.s)))
 					t.mutex.Lock()
 					ep = end.String()
 					front.Value = insertOp{sp, ep, s + v.s}
@@ -419,7 +463,7 @@ func (t *TkText) EditUndo(marks ...string) bool {
 			pos := t.Index(v.sp)
 			t.mutex.Lock()
 			for _, k := range marks {
-				t.marks[k] = &Position{pos.Row, pos.Col}
+				t.marks[k] = &Position{pos.Line, pos.Char}
 			}
 			t.mutex.Unlock()
 		case deleteOp:
@@ -427,7 +471,7 @@ func (t *TkText) EditUndo(marks ...string) bool {
 			pos := t.Index(v.ep)
 			t.mutex.Lock()
 			for _, k := range marks {
-				t.marks[k] = &Position{pos.Row, pos.Col}
+				t.marks[k] = &Position{pos.Line, pos.Char}
 			}
 			t.mutex.Unlock()
 		}
@@ -463,7 +507,7 @@ func (t *TkText) EditRedo(marks ...string) bool {
 			pos := t.Index(v.ep)
 			t.mutex.Lock()
 			for _, k := range marks {
-				t.marks[k] = &Position{pos.Row, pos.Col}
+				t.marks[k] = &Position{pos.Line, pos.Char}
 			}
 			t.mutex.Unlock()
 			redone = true
@@ -472,7 +516,7 @@ func (t *TkText) EditRedo(marks ...string) bool {
 			pos := t.Index(v.sp)
 			t.mutex.Lock()
 			for _, k := range marks {
-				t.marks[k] = &Position{pos.Row, pos.Col}
+				t.marks[k] = &Position{pos.Line, pos.Char}
 			}
 			t.mutex.Unlock()
 			redone = true
