@@ -30,7 +30,8 @@ func TestNew(t *testing.T) {
 func TestParse(t *testing.T) {
 	text := New()
 	strings := []string{"bad", "1.bad", "10000000000000000000.1",
-		"1.0+10000000000000000000c", "1.0+1characters", "1.0 bad"}
+		"1.0+10000000000000000000c", "1.0+1characters", "1.0 bad",
+		"1.0 linesoup", "1.0 wordeater"}
 	for _, pos := range strings {
 		func() {
 			defer func() {
@@ -69,6 +70,21 @@ func TestIndex(t *testing.T) {
 	text.Insert("1.5", " there")
 	poscmp(t, text.Index("1.8+1l"), 2, 5)
 	poscmp(t, text.Index("1.1+1l+10c-1l-1c"), 1, 4)
+
+	// Line start/end modifiers
+	poscmp(t, text.Index("1.5 linestart"), 1, 0)
+	poscmp(t, text.Index("1.5 lineend"), 1, 11)
+	poscmp(t, text.Index("2.0 lines"), 2, 0)
+	poscmp(t, text.Index("2.5 linee"), 2, 5)
+
+	// Word start/end modifiers
+	poscmp(t, text.Index("1.5 wordstart"), 1, 0)
+	poscmp(t, text.Index("2.2 wordend"), 2, 5)
+	poscmp(t, text.Index("2.0 wordstart"), 2, 0)
+	poscmp(t, text.Index("1.6 wordend"), 1, 11)
+
+	// Chain
+	poscmp(t, text.Index("1.2 linestart lineend +1c wordend -1l"), 1, 5)
 }
 
 func TestGet(t *testing.T) {

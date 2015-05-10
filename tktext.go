@@ -15,6 +15,8 @@ import (
 
 var lineCharRegexp = regexp.MustCompile(`^(\d+)\.(\w+)`)
 var countRegexp = regexp.MustCompile(`^ ?([+-]) ?(-?\d+) ?([cil]\w*)`)
+var startEndRegexp = regexp.MustCompile(`^ ?(line|word)([se]\w*)`)
+var wordRegexp = regexp.MustCompile(`^\w$`)
 
 // Position represents a position in a text buffer.
 type Position struct {
@@ -111,10 +113,6 @@ func (t *TkText) Index(index string) Position {
 
 	var pos Position
 
-	// Todo list -- don't remove until they're tested
-	// TODO: Support linestart, lineend, wordstart, wordend modifiers
-	// TODO: Allow unambiguous abbreviation of modifier words
-
 	// Parse base
 	if lineCharPos, length, err := t.parseLineChar(index); err == nil {
 		// <line>.<char>
@@ -197,6 +195,34 @@ func (t *TkText) Index(index string) Position {
 			} else {
 				panic(errors.New("Bad count type: " + match[3]))
 			}
+		} else if match := startEndRegexp.FindStringSubmatch(
+			index); match != nil {
+			// line/word start/end
+			if match[1] == "line" {
+				if strings.HasPrefix("start", match[2]) {
+					pos.Char = 0
+				} else if strings.HasPrefix("end", match[2]) {
+					pos.Char = len(t.getLine(pos.Line).Value.(string))
+				} else {
+					panic(errors.New("Bad index modifier: " + index))
+				}
+			} else { // match[1] == "word"
+				line := t.getLine(pos.Line).Value.(string)
+				if strings.HasPrefix("start", match[2]) {
+					for pos.Char > 0 &&
+						wordRegexp.MatchString(line[pos.Char-1:pos.Char]) {
+						pos.Char--
+					}
+				} else if strings.HasPrefix("end", match[2]) {
+					for pos.Char < len(line) &&
+						wordRegexp.MatchString(line[pos.Char:pos.Char+1]) {
+						pos.Char++
+					}
+				} else {
+					panic(errors.New("Bad index modifier: " + index))
+				}
+			}
+			index = index[len(match[0]):]
 		} else {
 			panic(errors.New("Bad index modifier: " + index))
 		}
