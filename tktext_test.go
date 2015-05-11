@@ -1,6 +1,9 @@
 package tktext
 
-import "testing"
+import (
+	"sort"
+	"testing"
+)
 
 func poscmp(t *testing.T, got Position, wantLine, wantChar int) {
 	if wantLine != got.Line || wantChar != got.Char {
@@ -162,6 +165,49 @@ func TestReplace(t *testing.T) {
 	strcmp(t, text.Get("1.0", "end").String(), "hands")
 }
 
+func TestMarkGravity(t *testing.T) {
+	text := New()
+	if _, err := text.MarkGetGravity("1"); err == nil {
+		t.Error("MarkGetGravity did not return error for new TkText")
+	}
+	text.MarkSet("1", "1.0")
+	if g, err := text.MarkGetGravity("1"); err == nil {
+		if g != Right {
+			t.Error("Default mark gravity not set to Right")
+		}
+	} else {
+		t.Error("MarkGetGravity returned error for valid mark name")
+	}
+	if err := text.MarkSetGravity("1", Right); err != nil {
+		t.Error("MarkSetGravity returned error for valid mark name")
+	}
+	if g, _ := text.MarkGetGravity("1"); g != Right {
+		t.Error("MarkSetGravity did not change mark gravity")
+	}
+	if err := text.MarkSetGravity("2", Right); err == nil {
+		t.Error("MarkSetGravity did not return error for invalid mark name")
+	}
+
+	// TODO: Test whether gravity actually works! I think right now all marks
+	//       behave as if they had right gravity.
+}
+
+func TestMarkNames(t *testing.T) {
+	text := New()
+	if len(text.MarkNames()) != 0 {
+		t.Error("MarkNames returned non-empty slice for new TkText")
+	}
+	names := []string{"1", "2", "3"}
+	for _, name := range names {
+		text.MarkSet(name, "1.0")
+	}
+	for i, name := range sort.StringSlice(text.MarkNames()) {
+		if names[i] != name {
+			t.Error("MarkNames did not return correct names")
+		}
+	}
+}
+
 func TestMarkSet(t *testing.T) {
 	text := New()
 	text.Insert("end", "hello")
@@ -190,14 +236,23 @@ func TestMarkSet(t *testing.T) {
 
 func TestMarkUnset(t *testing.T) {
 	text := New()
-	text.MarkSet("1", "1.0")
+	names := []string{"1", "2", "3"}
+	for _, name := range names {
+		text.MarkSet(name, "1.0")
+	}
+	text.MarkUnset()
 	text.MarkUnset("1")
-	defer func() {
-		if err := recover(); err == nil {
-			t.Error("MarkUnset did not remove mark")
-		}
-	}()
-	text.Get("1", "1")
+	text.MarkUnset("2", "3")
+	for _, name := range names {
+		func() {
+			defer func() {
+				if err := recover(); err == nil {
+					t.Error("MarkUnset did not remove mark")
+				}
+			}()
+			text.Get(name, name)
+		}()
+	}
 }
 
 func TestNumLines(t *testing.T) {
@@ -209,7 +264,6 @@ func TestNumLines(t *testing.T) {
 
 func TestUndo(t *testing.T) {
 	text := New()
-	text.MarkSet("mark", "end")
 	text.EditSeparator()
 	if text.EditUndo() {
 		t.Error("EditUndo returned true for new TkText")
@@ -241,18 +295,18 @@ func TestUndo(t *testing.T) {
 	}
 	text.Insert("1.0", "hello ")
 	text.Insert("end", " world")
-	text.EditUndo("mark")
+	text.EditUndo()
 	strcmp(t, text.Get("1.0", "end").String(), "")
-	text.EditRedo("mark")
+	text.EditRedo()
 	strcmp(t, text.Get("1.0", "end").String(), "hello there world")
 	text.EditSeparator()
 	text.EditSeparator()
 	text.Delete("1.8", "1.10")
 	text.Delete("1.8", "1.10")
 	text.Delete("1.4", "1.8")
-	text.EditUndo("mark")
+	text.EditUndo()
 	strcmp(t, text.Get("1.0", "end").String(), "hello there world")
-	text.EditRedo("mark")
+	text.EditRedo()
 	strcmp(t, text.Get("1.0", "end").String(), "hellworld")
 	text.EditUndo()
 	text.EditUndo()

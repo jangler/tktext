@@ -13,6 +13,16 @@ import (
 	"sync"
 )
 
+// Gravity determines the behavior of a mark during insertions at its position.
+// Right gravity, the default, means that the mark remains to the right of the
+// inserted text, and left gravity means that the mark remains to the left.
+type Gravity uint8
+
+const (
+	Right Gravity = iota
+	Left
+)
+
 var lineCharRegexp = regexp.MustCompile(`^(\d+)\.(\w+)`)
 var countRegexp = regexp.MustCompile(`^ ?([+-]) ?(-?\d+) ?([cil]\w*)`)
 var startEndRegexp = regexp.MustCompile(`^ ?(line|word)([se]\w*)`)
@@ -39,16 +49,21 @@ type deleteOp struct {
 
 type separator bool
 
+type mark struct {
+	Position
+	gravity Gravity
+}
+
 // TkText represents a text buffer.
 type TkText struct {
 	lines, undoStack, redoStack *list.List
-	marks                       map[string]*Position
+	marks                       map[string]*mark
 	mutex                       *sync.RWMutex
 }
 
 // New returns an initialized TkText object.
 func New() *TkText {
-	b := TkText{list.New(), list.New(), list.New(), make(map[string]*Position),
+	b := TkText{list.New(), list.New(), list.New(), make(map[string]*mark),
 		&sync.RWMutex{}}
 	b.lines.PushBack("")
 	return &b
@@ -136,10 +151,10 @@ func (t *TkText) Index(index string) Position {
 		index = index[3:]
 	} else {
 		// <mark>
-		for mark, markPos := range t.marks {
-			if strings.HasPrefix(index, mark) {
-				pos = *markPos
-				index = index[len(mark):]
+		for k, v := range t.marks {
+			if strings.HasPrefix(index, k) {
+				pos = v.Position
+				index = index[len(k):]
 				break
 			}
 		}
@@ -324,20 +339,21 @@ func (t *TkText) del(startIndex, endIndex string, undo bool) {
 	}
 
 	// Update marks
-	for _, pos := range t.marks {
-		if pos.Line == end.Line && pos.Char >= end.Char {
-			pos.Char += start.Char - end.Char
-		} else if pos.Line == start.Line && pos.Char >= start.Char {
-			pos.Char = start.Char
+	// TODO: Take mark gravity into account
+	for _, m := range t.marks {
+		if m.Line == end.Line && m.Char >= end.Char {
+			m.Char += start.Char - end.Char
+		} else if m.Line == start.Line && m.Char >= start.Char {
+			m.Char = start.Char
 		}
 		if start.Line != end.Line &&
-			((pos.Line == start.Line && pos.Char > start.Char) ||
-				(pos.Line > start.Line && pos.Line < end.Line) ||
-				(pos.Line == end.Line && pos.Char < end.Char)) {
-			pos.Char = start.Char
+			((m.Line == start.Line && m.Char > start.Char) ||
+				(m.Line > start.Line && m.Line < end.Line) ||
+				(m.Line == end.Line && m.Char < end.Char)) {
+			m.Char = start.Char
 		}
-		if pos.Line >= end.Line {
-			pos.Line -= end.Line - start.Line
+		if m.Line >= end.Line {
+			m.Line -= end.Line - start.Line
 		}
 	}
 
@@ -400,15 +416,16 @@ func (t *TkText) insert(index, s string, undo bool) {
 	}
 
 	// Update marks
-	for _, pos := range t.marks {
-		if pos.Line > start.Line {
-			pos.Line += len(lines) - 1
-		} else if pos.Line == start.Line && pos.Char >= start.Char {
-			pos.Line += len(lines) - 1
+	// TODO: Take mark gravity into account
+	for _, m := range t.marks {
+		if m.Line > start.Line {
+			m.Line += len(lines) - 1
+		} else if m.Line == start.Line && m.Char >= start.Char {
+			m.Line += len(lines) - 1
 			if len(lines) == 1 {
-				pos.Char += len(s)
+				m.Char += len(s)
 			} else {
-				pos.Char += len(line.Value.(string)) - start.Char
+				m.Char += len(line.Value.(string)) - start.Char
 			}
 		}
 	}
@@ -466,19 +483,64 @@ func (t *TkText) Replace(startIndex, endIndex, s string) {
 	t.Insert(startIndex, s)
 }
 
-// MarkSet associates a name with an index into b. The name must not contain a
-// space character.
+// MarkGetGravity returns the gravity of the mark with the given name, or an
+// error if no mark with the given name exists.
+func (t *TkText) MarkGetGravity(name string) (Gravity, error) {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	m := t.marks[name]
+	if m == nil {
+		return Right, fmt.Errorf("mark does not exist: %s", name)
+	}
+	return m.gravity, nil
+}
+
+// MarkSetGravity sets the gravity of the mark with the given name, or returns
+// an error if a mark with the given name is not set.
+func (t *TkText) MarkSetGravity(name string, direction Gravity) error {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	m := t.marks[name]
+	if m == nil {
+		return fmt.Errorf("mark does not exist: %s", name)
+	}
+	m.gravity = direction
+	return nil
+}
+
+// MarkNames returns a slice of names of marks that are currently set.
+func (t *TkText) MarkNames() []string {
+	t.mutex.RLock()
+	names := make([]string, len(t.marks))
+	i := 0
+	for k, _ := range t.marks {
+		names[i] = k
+		i++
+	}
+	t.mutex.RUnlock()
+	return names
+}
+
+// TODO: MarkNext
+
+// TODO: MarkPrevious
+
+// MarkSet sets a mark with the given name at the position at the given index.
+// If a mark with the given name is already set, its position is updated.
 func (t *TkText) MarkSet(name, index string) {
 	pos := t.Index(index)
 	t.mutex.Lock()
-	t.marks[name] = &pos
+	t.marks[name] = &mark{pos, Right}
 	t.mutex.Unlock()
 }
 
-// MarkUnset removes a mark from b.
-func (t *TkText) MarkUnset(name string) {
+// MarkUnset removes the marks with the given names. It is not an error to
+// remove a mark that is not set.
+func (t *TkText) MarkUnset(name ...string) {
 	t.mutex.Lock()
-	delete(t.marks, name)
+	for _, k := range name {
+		delete(t.marks, k)
+	}
 	t.mutex.Unlock()
 }
 
@@ -490,8 +552,7 @@ func (t *TkText) NumLines() int {
 }
 
 // EditUndo undoes changes to the buffer until a separator is encountered or
-// the undo stack is empty. Undone changes are pushed onto the redo stack. The
-// given marks are placed at position of the redone operation.
+// the undo stack is empty.
 func (t *TkText) EditUndo(marks ...string) bool {
 	i, loop := 0, true
 	for loop {
@@ -508,20 +569,8 @@ func (t *TkText) EditUndo(marks ...string) bool {
 			}
 		case insertOp:
 			t.del(v.sp, v.ep, false)
-			pos := t.Index(v.sp)
-			t.mutex.Lock()
-			for _, k := range marks {
-				t.marks[k] = &Position{pos.Line, pos.Char}
-			}
-			t.mutex.Unlock()
 		case deleteOp:
 			t.insert(v.sp, v.s, false)
-			pos := t.Index(v.ep)
-			t.mutex.Lock()
-			for _, k := range marks {
-				t.marks[k] = &Position{pos.Line, pos.Char}
-			}
-			t.mutex.Unlock()
 		}
 		if loop {
 			t.mutex.Lock()
@@ -534,9 +583,8 @@ func (t *TkText) EditUndo(marks ...string) bool {
 }
 
 // EditRedo redoes changes to the buffer until a separator is encountered or
-// the undo stack is empty. Redone changes are pushed onto the undo stack. The
-// given marks are placed at position of the redone operation.
-func (t *TkText) EditRedo(marks ...string) bool {
+// the undo stack is empty. Redone changes are pushed onto the undo stack.
+func (t *TkText) EditRedo() bool {
 	i, loop, redone := 0, true, false
 	for loop {
 		t.mutex.RLock()
@@ -552,21 +600,9 @@ func (t *TkText) EditRedo(marks ...string) bool {
 			}
 		case insertOp:
 			t.insert(v.sp, v.s, false)
-			pos := t.Index(v.ep)
-			t.mutex.Lock()
-			for _, k := range marks {
-				t.marks[k] = &Position{pos.Line, pos.Char}
-			}
-			t.mutex.Unlock()
 			redone = true
 		case deleteOp:
 			t.del(v.sp, v.ep, false)
-			pos := t.Index(v.sp)
-			t.mutex.Lock()
-			for _, k := range marks {
-				t.marks[k] = &Position{pos.Line, pos.Char}
-			}
-			t.mutex.Unlock()
 			redone = true
 		}
 		if loop {
