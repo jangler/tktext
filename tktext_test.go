@@ -44,6 +44,20 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestCompare(t *testing.T) {
+	text := New()
+	text.Insert("1.0", "hello\nworld")
+	if text.Compare("1.0", "end -15c") != 0 {
+		t.Error("Compare did not return zero for identical indices")
+	}
+	if text.Compare("end linestart -1c", "1.0 +1l") >= 0 {
+		t.Error("Compare did not return negative for index1 < index2")
+	}
+	if text.Compare("1.0 wordend", "1.5 linestart") <= 0 {
+		t.Error("Compare did not return positive for index1 > index2")
+	}
+}
+
 func TestIndex(t *testing.T) {
 	text := New()
 	text.Insert("1.0", "hello\nworld")

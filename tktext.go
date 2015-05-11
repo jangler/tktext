@@ -105,6 +105,17 @@ func (t *TkText) parseLineChar(index string) (Position, int, error) {
 	return pos, len(match[0]), nil
 }
 
+// Compare returns a positive integer if index1 is greater than index2, a
+// negative integer if index1 is less than index2, and zero if the indices are
+// equal.
+func (t *TkText) Compare(index1, index2 string) int {
+	pos1, pos2 := t.Index(index1), t.Index(index2)
+	if pos1.Line != pos2.Line {
+		return pos1.Line - pos2.Line
+	}
+	return pos1.Char - pos2.Char
+}
+
 // Index parses a string index and returns an equivalent Position. If the index
 // is badly formed, panic.
 func (t *TkText) Index(index string) Position {
