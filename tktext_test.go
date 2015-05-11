@@ -188,8 +188,11 @@ func TestMarkGravity(t *testing.T) {
 		t.Error("MarkSetGravity did not return error for invalid mark name")
 	}
 
-	// TODO: Test whether gravity actually works! I think right now all marks
-	//       behave as if they had right gravity.
+	text.Insert("1", "hello")
+	poscmp(t, text.Index("1"), 1, 5)
+	text.MarkSetGravity("1", Left)
+	text.Insert("1", " world")
+	poscmp(t, text.Index("1"), 1, 5)
 }
 
 func TestMarkNames(t *testing.T) {
@@ -197,15 +200,42 @@ func TestMarkNames(t *testing.T) {
 	if len(text.MarkNames()) != 0 {
 		t.Error("MarkNames returned non-empty slice for new TkText")
 	}
-	names := []string{"1", "2", "3"}
-	for _, name := range names {
+	names1 := []string{"1", "2", "3"}
+	for _, name := range names1 {
 		text.MarkSet(name, "1.0")
 	}
-	for i, name := range sort.StringSlice(text.MarkNames()) {
-		if names[i] != name {
+	names2 := text.MarkNames()
+	sort.StringSlice(names2).Sort()
+	for i, _ := range names1 {
+		if names1[i] != names2[i] {
 			t.Error("MarkNames did not return correct names")
 		}
 	}
+}
+
+func TestMarkNextPrevious(t *testing.T) {
+	text := New()
+	text.Insert("1.0", "hello\nworld")
+	text.MarkSet("4", "1.0")
+	text.MarkSet("2", "1.5")
+	text.MarkSet("3", "1.5")
+	text.MarkSet("1", "2.0")
+
+	strcmp(t, text.MarkNext("1.0"), "4")
+	strcmp(t, text.MarkNext("4"), "2")
+	strcmp(t, text.MarkNext("1.1"), "2")
+	strcmp(t, text.MarkNext("2"), "3")
+	strcmp(t, text.MarkNext("3"), "1")
+	strcmp(t, text.MarkNext("1"), "")
+	strcmp(t, text.MarkNext("2.1"), "")
+
+	strcmp(t, text.MarkPrevious("1.0"), "4")
+	strcmp(t, text.MarkPrevious("4"), "")
+	strcmp(t, text.MarkPrevious("1.5"), "3")
+	strcmp(t, text.MarkPrevious("3"), "2")
+	strcmp(t, text.MarkPrevious("2"), "4")
+	strcmp(t, text.MarkPrevious("2.0"), "1")
+	strcmp(t, text.MarkPrevious("1"), "3")
 }
 
 func TestMarkSet(t *testing.T) {
@@ -228,6 +258,8 @@ func TestMarkSet(t *testing.T) {
 	strcmp(t, text.Get("1", "2").String(), "ey and\nhell")
 	text.Delete("1", "3.1")
 	strcmp(t, text.Get("1", "2").String(), "ell")
+	text.Delete("1", "1+1c")
+	strcmp(t, text.Get("1", "2").String(), "ll")
 	text.Delete("1", "2")
 	strcmp(t, text.Get("1", "2").String(), "")
 	text.Delete("1.0", "end")

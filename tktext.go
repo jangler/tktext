@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,6 +53,22 @@ type separator bool
 type mark struct {
 	Position
 	gravity Gravity
+	name    string
+}
+
+type markSort []*mark
+
+func (a markSort) Len() int      { return len(a) }
+func (a markSort) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a markSort) Less(i, j int) bool {
+	if a[i].Line != a[j].Line {
+		return a[i].Line < a[j].Line
+	}
+	if a[i].Char != a[j].Char {
+		return a[i].Char < a[j].Char
+	}
+	return a[i].name < a[j].name
 }
 
 // TkText represents a text buffer.
@@ -120,15 +137,18 @@ func (t *TkText) parseLineChar(index string) (Position, int, error) {
 	return pos, len(match[0]), nil
 }
 
-// Compare returns a positive integer if index1 is greater than index2, a
-// negative integer if index1 is less than index2, and zero if the indices are
-// equal.
-func (t *TkText) Compare(index1, index2 string) int {
-	pos1, pos2 := t.Index(index1), t.Index(index2)
+func comparePos(pos1, pos2 Position) int {
 	if pos1.Line != pos2.Line {
 		return pos1.Line - pos2.Line
 	}
 	return pos1.Char - pos2.Char
+}
+
+// Compare returns a positive integer if index1 is greater than index2, a
+// negative integer if index1 is less than index2, and zero if the indices are
+// equal.
+func (t *TkText) Compare(index1, index2 string) int {
+	return comparePos(t.Index(index1), t.Index(index2))
 }
 
 // Index parses a string index and returns an equivalent Position. If the index
@@ -150,12 +170,13 @@ func (t *TkText) Index(index string) Position {
 		pos.Char = len(t.lines.Back().Value.(string))
 		index = index[3:]
 	} else {
-		// <mark>
+		// <mark> - pick the longest mark that matches the index
+		prefixLen := 0
 		for k, v := range t.marks {
-			if strings.HasPrefix(index, k) {
+			if strings.HasPrefix(index, k) && len(k) > prefixLen {
 				pos = v.Position
-				index = index[len(k):]
-				break
+				prefixLen = len(k)
+				index = index[prefixLen:]
 			}
 		}
 	}
@@ -339,21 +360,16 @@ func (t *TkText) del(startIndex, endIndex string, undo bool) {
 	}
 
 	// Update marks
-	// TODO: Take mark gravity into account
 	for _, m := range t.marks {
-		if m.Line == end.Line && m.Char >= end.Char {
-			m.Char += start.Char - end.Char
-		} else if m.Line == start.Line && m.Char >= start.Char {
-			m.Char = start.Char
-		}
-		if start.Line != end.Line &&
-			((m.Line == start.Line && m.Char > start.Char) ||
-				(m.Line > start.Line && m.Line < end.Line) ||
-				(m.Line == end.Line && m.Char < end.Char)) {
-			m.Char = start.Char
-		}
-		if m.Line >= end.Line {
-			m.Line -= end.Line - start.Line
+		if comparePos(start, m.Position) <= 0 {
+			if comparePos(m.Position, end) <= 0 {
+				m.Position = start
+			} else {
+				if m.Line == end.Line && start.Line == end.Line {
+					m.Char -= end.Char - start.Char
+				}
+				m.Line -= end.Line - start.Line
+			}
 		}
 	}
 
@@ -416,16 +432,17 @@ func (t *TkText) insert(index, s string, undo bool) {
 	}
 
 	// Update marks
-	// TODO: Take mark gravity into account
 	for _, m := range t.marks {
 		if m.Line > start.Line {
 			m.Line += len(lines) - 1
 		} else if m.Line == start.Line && m.Char >= start.Char {
 			m.Line += len(lines) - 1
-			if len(lines) == 1 {
-				m.Char += len(s)
-			} else {
-				m.Char += len(line.Value.(string)) - start.Char
+			if m.gravity == Right || m.Char > start.Char {
+				if len(lines) == 1 {
+					m.Char += len(s)
+				} else {
+					m.Char += len(line.Value.(string)) - start.Char
+				}
 			}
 		}
 	}
@@ -521,16 +538,63 @@ func (t *TkText) MarkNames() []string {
 	return names
 }
 
-// TODO: MarkNext
+func (t *TkText) sortedMarks(reverse bool) []*mark {
+	marks := make([]*mark, len(t.marks))
+	i := 0
+	for _, m := range t.marks {
+		marks[i] = m
+		i++
+	}
+	if reverse {
+		sort.Sort(sort.Reverse(markSort(marks)))
+	} else {
+		sort.Sort(markSort(marks))
+	}
+	return marks
+}
 
-// TODO: MarkPrevious
+// MarkNext returns the name of the next mark at or after the given index. If
+// the given index is a mark, that mark will not be returned. An empty string
+// is returned if no mark is found.
+func (t *TkText) MarkNext(index string) string {
+	pos := t.Index(index)
+	marks := t.sortedMarks(false)
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	indexIsMark := t.marks[index] != nil
+	for _, m := range marks {
+		if m.Line > pos.Line || (m.Line == pos.Line && (m.Char > pos.Char ||
+			(m.Char == pos.Char && (!indexIsMark || m.name > index)))) {
+			return m.name
+		}
+	}
+	return ""
+}
+
+// MarkPrevious returns the name of the next mark at or before the given index.
+// If the given index is a mark, that mark will not be returned. An empty
+// string is returned if no mark is found.
+func (t *TkText) MarkPrevious(index string) string {
+	pos := t.Index(index)
+	marks := t.sortedMarks(true)
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	indexIsMark := t.marks[index] != nil
+	for _, m := range marks {
+		if m.Line < pos.Line || (m.Line == pos.Line && (m.Char < pos.Char ||
+			(m.Char == pos.Char && (!indexIsMark || m.name < index)))) {
+			return m.name
+		}
+	}
+	return ""
+}
 
 // MarkSet sets a mark with the given name at the position at the given index.
 // If a mark with the given name is already set, its position is updated.
 func (t *TkText) MarkSet(name, index string) {
 	pos := t.Index(index)
 	t.mutex.Lock()
-	t.marks[name] = &mark{pos, Right}
+	t.marks[name] = &mark{pos, Right, name}
 	t.mutex.Unlock()
 }
 
