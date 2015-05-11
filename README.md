@@ -9,6 +9,7 @@ Currently, this library supports equivalents to the following Tk text widget
 commands:
 
 - compare
+- count
 - delete
 - edit (partial)
 - get

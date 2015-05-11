@@ -61,6 +61,25 @@ func TestCompare(t *testing.T) {
 	}
 }
 
+func TestCount(t *testing.T) {
+	text := New()
+	text.Insert("end", // Haiku by Robert Spiess
+		"an aging willow--\nits image unsteady\nin the flowing stream")
+
+	intcmp(t, text.CountChars("1.5", "1.5"), 0)
+	intcmp(t, text.CountChars("2.3", "2.10"), 7)
+	intcmp(t, text.CountChars("3.0", "2.18"), -1)
+	intcmp(t, text.CountChars("1.0", "end"),
+		len(text.Get("1.0", "end").String()))
+	intcmp(t, text.CountChars("end", "1.0"),
+		-len(text.Get("1.0", "end").String()))
+
+	intcmp(t, text.CountLines("2.0", "2.18"), 0)
+	intcmp(t, text.CountLines("2.0", "1.17"), -1)
+	intcmp(t, text.CountLines("1.0", "3.0"), 2)
+	intcmp(t, text.CountLines("end", "1.0"), -2)
+}
+
 func TestIndex(t *testing.T) {
 	text := New()
 	text.Insert("1.0", "hello\nworld")

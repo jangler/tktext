@@ -151,6 +151,35 @@ func (t *TkText) Compare(index1, index2 string) int {
 	return comparePos(t.Index(index1), t.Index(index2))
 }
 
+// CountChars returns the number of UTF-8 characters between two indices. If
+// the first index is after the second, the result will be a negative number.
+func (t *TkText) CountChars(index1, index2 string) int {
+	pos1, pos2 := t.Index(index1), t.Index(index2)
+	reverse := comparePos(pos1, pos2) > 0
+	if reverse {
+		pos1, pos2 = pos2, pos1
+	}
+	line := t.getLine(pos1.Line)
+	n := 0
+	for pos1.Line < pos2.Line {
+		n += len(line.Value.(string)) + 1
+		pos1.Line++
+		line = line.Next()
+	}
+	n += pos2.Char - pos1.Char
+	if reverse {
+		n = -n
+	}
+	return n
+}
+
+// CountLines returns the number of line breaks between two indices. If the
+// first index is after the second, the result will be a negative number.
+func (t *TkText) CountLines(index1, index2 string) int {
+	pos1, pos2 := t.Index(index1), t.Index(index2)
+	return pos2.Line - pos1.Line
+}
+
 // Index parses a string index and returns an equivalent Position. If the index
 // is badly formed, panic.
 func (t *TkText) Index(index string) Position {
