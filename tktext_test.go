@@ -47,6 +47,26 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestBBox(t *testing.T) {
+	text := New()
+	if vals := text.BBox("1.0"); vals[0] != 0 || vals[1] != 0 {
+		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], 0, 0)
+	}
+	text.SetSize(3, 1)
+	text.Insert("end", "hello\nworld")
+	text.XViewScroll(2)
+	text.YViewScroll(1)
+	if vals := text.BBox("1.0"); vals[0] != -2 || vals[1] != -1 {
+		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], -2, -1)
+	}
+	text.SetWrap(Char)
+	text.XViewMoveTo(0)
+	text.YViewMoveTo(0)
+	if vals := text.BBox("2.4"); vals[0] != 1 || vals[1] != 3 {
+		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], 1, 3)
+	}
+}
+
 func TestCompare(t *testing.T) {
 	text := New()
 	text.Insert("1.0", "hello\nworld")
@@ -86,6 +106,25 @@ func TestCount(t *testing.T) {
 	intcmp(t, text.CountDisplayLines("1.0", "1.9"), 0)
 	intcmp(t, text.CountDisplayLines("1.9", "1.10"), 1)
 	intcmp(t, text.CountDisplayLines("1.10", "1.end"), 0)
+}
+
+func TestDLineInfo(t *testing.T) {
+	text := New()
+	if a := text.DLineInfo("1.0"); a[0] != 0 || a[1] != 0 || a[2] != 0 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 0, 0, 0)
+	}
+	text.SetSize(6, 2)
+	text.SetWrap(Char)
+	text.Insert("end", "hello world")
+	if a := text.DLineInfo("1.3"); a[0] != 3 || a[1] != 0 || a[2] != 6 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 3, 0, 6)
+	}
+	if a := text.DLineInfo("1.8"); a[0] != 2 || a[1] != 1 || a[2] != 5 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 1, 1, 5)
+	}
+	if a := text.DLineInfo("1.11"); a[0] != 5 || a[1] != 1 || a[2] != 5 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 5, 1, 5)
+	}
 }
 
 func TestEditModified(t *testing.T) {

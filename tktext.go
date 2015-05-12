@@ -178,6 +178,19 @@ func comparePos(pos1, pos2 Position) int {
 	return pos1.Char - pos2.Char
 }
 
+// BBox returns a slice containing the row and column numbers of the given
+// index on the screen. The resulting values may be beyond the bounds of the
+// screen.
+func (t *TkText) BBox(index string) []int {
+	col := t.Index(index).Char - t.xScroll
+	t.mutex.RLock()
+	if t.wrapMode == Char {
+		col %= t.width
+	}
+	t.mutex.RUnlock()
+	return []int{col, t.DLineInfo(index)[1]}
+}
+
 // Compare returns a positive integer if index1 is greater than index2, a
 // negative integer if index1 is less than index2, and zero if the indices are
 // equal.
@@ -255,6 +268,35 @@ func (t *TkText) CountDisplayLines(index1, index2 string) int {
 		n = -n
 	}
 	return n
+}
+
+// DLineInfo returns a slice containing the starting row and column numbers
+// of the display line containing the given index, as well as the width of
+// that line in columns. The resulting values may be beyond the bounds of the
+// screen.
+func (t *TkText) DLineInfo(index string) []int {
+	var x, y, w int
+	t.mutex.RLock()
+	y = t.CountDisplayLines("1.0", index) - t.yScroll
+	w = t.CountChars(index+" linestart", index+" lineend")
+	if t.wrapMode == None {
+		x = t.Index(index).Char
+	} else { // t.wrapMode == Char
+		line := t.Get(index+" linestart", index)
+		length := len(line)
+		for length > t.width {
+			length -= t.width
+			w -= t.width
+			line = line[t.width:]
+		}
+		x = length
+		if w > t.width {
+			w = t.width
+		}
+	}
+	x -= t.xScroll
+	t.mutex.RUnlock()
+	return []int{x, y, w}
 }
 
 // Index parses a string index and returns an equivalent valid Position in the

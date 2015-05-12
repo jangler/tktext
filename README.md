@@ -8,9 +8,11 @@ library may provide functions to assist drawing fixed-width text views.
 Currently, this library supports equivalents to the following Tk text widget
 commands:
 
+- bbox
 - compare
 - count
 - delete
+- dlineinfo
 - edit
 - get
 - index
