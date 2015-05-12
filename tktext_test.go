@@ -69,10 +69,8 @@ func TestCount(t *testing.T) {
 	intcmp(t, text.CountChars("1.5", "1.5"), 0)
 	intcmp(t, text.CountChars("2.3", "2.10"), 7)
 	intcmp(t, text.CountChars("3.0", "2.18"), -1)
-	intcmp(t, text.CountChars("1.0", "end"),
-		len(text.Get("1.0", "end").String()))
-	intcmp(t, text.CountChars("end", "1.0"),
-		-len(text.Get("1.0", "end").String()))
+	intcmp(t, text.CountChars("1.0", "end"), len(text.Get("1.0", "end")))
+	intcmp(t, text.CountChars("end", "1.0"), -len(text.Get("1.0", "end")))
 
 	intcmp(t, text.CountLines("2.0", "2.18"), 0)
 	intcmp(t, text.CountLines("2.0", "1.17"), -1)
@@ -126,62 +124,66 @@ func TestIndex(t *testing.T) {
 func TestGet(t *testing.T) {
 	text := New()
 	text.Insert("1.0", "hello")
-	strcmp(t, text.Get("1.1", "1.1").String(), "")
-	strcmp(t, text.Get("1.1", "1.4").String(), "ell")
-	strcmp(t, text.Get("1.1", "1.end").String(), "ello")
-	strcmp(t, text.Get("1.0", "end").String(), "hello")
+	strcmp(t, text.Get("1.1", "1.1"), "")
+	strcmp(t, text.Get("end", "1.0"), "")
+	strcmp(t, text.Get("1.1", "1.4"), "ell")
+	strcmp(t, text.Get("1.1", "1.end"), "ello")
+	strcmp(t, text.Get("1.0", "end"), "hello")
 	text.Insert("end", "\nworld")
-	strcmp(t, text.Get("2.0", "end").String(), "world")
+	strcmp(t, text.Get("2.0", "end"), "world")
 }
 
 func TestInsert(t *testing.T) {
 	text := New()
 	text.Insert("1.0", "")
-	strcmp(t, text.Get("1.0", "end").String(), "")
+	strcmp(t, text.Get("1.0", "end"), "")
 	text.Insert("1.0", "alpha")
-	strcmp(t, text.Get("1.0", "end").String(), "alpha")
+	strcmp(t, text.Get("1.0", "end"), "alpha")
 	text.Insert("1.0", "beta ")
-	strcmp(t, text.Get("1.0", "end").String(), "beta alpha")
+	strcmp(t, text.Get("1.0", "end"), "beta alpha")
 	text.Insert("1.5", "gamma ")
-	strcmp(t, text.Get("1.0", "end").String(), "beta gamma alpha")
+	strcmp(t, text.Get("1.0", "end"), "beta gamma alpha")
 	text.Insert("2.0", " delta")
-	strcmp(t, text.Get("1.0", "end").String(), "beta gamma alpha delta")
+	strcmp(t, text.Get("1.0", "end"), "beta gamma alpha delta")
 
 	text = New()
 	text.Insert("1.0", "alpha\nbeta gamma\ndelta")
-	strcmp(t, text.Get("1.0", "end").String(), "alpha\nbeta gamma\ndelta")
+	strcmp(t, text.Get("1.0", "end"), "alpha\nbeta gamma\ndelta")
 	text.Insert("2.5", "epsilon\nzeta ")
-	strcmp(t, text.Get("1.0", "end").String(),
+	strcmp(t, text.Get("1.0", "end"),
 		"alpha\nbeta epsilon\nzeta gamma\ndelta")
 	text.Insert("2.5", "eta ")
-	strcmp(t, text.Get("1.0", "end").String(),
+	strcmp(t, text.Get("1.0", "end"),
 		"alpha\nbeta eta epsilon\nzeta gamma\ndelta")
 }
 
 func TestDelete(t *testing.T) {
 	text := New()
 	text.Insert("1.0", "chased")
+	text.Delete("1.2", "1.1")
 	text.Delete("1.2", "1.2")
-	strcmp(t, text.Get("1.0", "end").String(), "chased")
+	strcmp(t, text.Get("1.0", "end"), "chased")
 	text.Delete("1.3", "1.5")
-	strcmp(t, text.Get("1.0", "end").String(), "chad")
+	strcmp(t, text.Get("1.0", "end"), "chad")
 	text.Delete("1.0", "end")
-	strcmp(t, text.Get("1.0", "end").String(), "")
+	strcmp(t, text.Get("1.0", "end"), "")
 	text.Insert("1.0", "alpha\nbeta\ngamma\ndelta")
 	text.Delete("2.3", "4.3")
-	strcmp(t, text.Get("1.0", "end").String(), "alpha\nbetta")
+	strcmp(t, text.Get("1.0", "end"), "alpha\nbetta")
 }
 
 func TestReplace(t *testing.T) {
 	text := New()
 	text.Replace("1.0", "1.0", "hello")
-	strcmp(t, text.Get("1.0", "end").String(), "hello")
+	strcmp(t, text.Get("1.0", "end"), "hello")
 	text.Replace("1.1", "1.4", "ipp")
-	strcmp(t, text.Get("1.0", "end").String(), "hippo")
+	strcmp(t, text.Get("1.0", "end"), "hippo")
 	text.Replace("1.4", "1.5", "o\npotamus")
-	strcmp(t, text.Get("1.0", "end").String(), "hippo\npotamus")
+	strcmp(t, text.Get("1.0", "end"), "hippo\npotamus")
 	text.Replace("1.1", "2.6", "and")
-	strcmp(t, text.Get("1.0", "end").String(), "hands")
+	strcmp(t, text.Get("1.0", "end"), "hands")
+	text.Replace("end", "1.0", " down")
+	strcmp(t, text.Get("1.0", "end"), "hands down")
 }
 
 func TestMarkGravity(t *testing.T) {
@@ -262,27 +264,27 @@ func TestMarkSet(t *testing.T) {
 	text.Insert("end", "hello")
 	text.MarkSet("1", "1.1")
 	text.MarkSet("2", "1.4")
-	strcmp(t, text.Get("1", "2").String(), "ell")
+	strcmp(t, text.Get("1", "2"), "ell")
 
 	text.Insert("1.0", "\n")
-	strcmp(t, text.Get("1", "2").String(), "ell")
+	strcmp(t, text.Get("1", "2"), "ell")
 	text.Insert("1.0", "\n")
-	strcmp(t, text.Get("1", "2").String(), "ell")
+	strcmp(t, text.Get("1", "2"), "ell")
 	text.Insert("3.2", "y he")
-	strcmp(t, text.Get("1", "2").String(), "ey hell")
+	strcmp(t, text.Get("1", "2"), "ey hell")
 	text.Insert("3.4", "and\n")
-	strcmp(t, text.Get("1", "2").String(), "ey and\nhell")
+	strcmp(t, text.Get("1", "2"), "ey and\nhell")
 
 	text.Delete("1.0", "2.0")
-	strcmp(t, text.Get("1", "2").String(), "ey and\nhell")
+	strcmp(t, text.Get("1", "2"), "ey and\nhell")
 	text.Delete("1", "3.1")
-	strcmp(t, text.Get("1", "2").String(), "ell")
+	strcmp(t, text.Get("1", "2"), "ell")
 	text.Delete("1", "1+1c")
-	strcmp(t, text.Get("1", "2").String(), "ll")
+	strcmp(t, text.Get("1", "2"), "ll")
 	text.Delete("1", "2")
-	strcmp(t, text.Get("1", "2").String(), "")
+	strcmp(t, text.Get("1", "2"), "")
 	text.Delete("1.0", "end")
-	strcmp(t, text.Get("1", "2").String(), "")
+	strcmp(t, text.Get("1", "2"), "")
 }
 
 func TestMarkUnset(t *testing.T) {
@@ -306,13 +308,6 @@ func TestMarkUnset(t *testing.T) {
 	}
 }
 
-func TestNumLines(t *testing.T) {
-	text := New()
-	intcmp(t, text.NumLines(), 1)
-	text.Insert("1.0", "hello\nworld\n")
-	intcmp(t, text.NumLines(), 3)
-}
-
 func TestUndo(t *testing.T) {
 	text := New()
 	text.EditSeparator()
@@ -329,16 +324,16 @@ func TestUndo(t *testing.T) {
 	if text.EditUndo() {
 		t.Error("EditUndo returned true for empty stack")
 	}
-	strcmp(t, text.Get("1.0", "end").String(), "")
+	strcmp(t, text.Get("1.0", "end"), "")
 	if !text.EditRedo() {
 		t.Error("EditRedo returned false for non-empty stack")
 	}
 	if text.EditRedo() {
 		t.Error("EditRedo returned true for empty stack")
 	}
-	strcmp(t, text.Get("1.0", "end").String(), "hello")
+	strcmp(t, text.Get("1.0", "end"), "hello")
 	text.EditUndo()
-	strcmp(t, text.Get("1.0", "end").String(), "")
+	strcmp(t, text.Get("1.0", "end"), "")
 
 	text.Insert("1.0", "there")
 	if text.EditRedo() {
@@ -347,25 +342,25 @@ func TestUndo(t *testing.T) {
 	text.Insert("1.0", "hello ")
 	text.Insert("end", " world")
 	text.EditUndo()
-	strcmp(t, text.Get("1.0", "end").String(), "")
+	strcmp(t, text.Get("1.0", "end"), "")
 	text.EditRedo()
-	strcmp(t, text.Get("1.0", "end").String(), "hello there world")
+	strcmp(t, text.Get("1.0", "end"), "hello there world")
 	text.EditSeparator()
 	text.EditSeparator()
 	text.Delete("1.8", "1.10")
 	text.Delete("1.8", "1.10")
 	text.Delete("1.4", "1.8")
 	text.EditUndo()
-	strcmp(t, text.Get("1.0", "end").String(), "hello there world")
+	strcmp(t, text.Get("1.0", "end"), "hello there world")
 	text.EditRedo()
-	strcmp(t, text.Get("1.0", "end").String(), "hellworld")
+	strcmp(t, text.Get("1.0", "end"), "hellworld")
 	text.EditUndo()
 	text.EditUndo()
-	strcmp(t, text.Get("1.0", "end").String(), "")
+	strcmp(t, text.Get("1.0", "end"), "")
 	text.EditRedo()
-	strcmp(t, text.Get("1.0", "end").String(), "hello there world")
+	strcmp(t, text.Get("1.0", "end"), "hello there world")
 	text.EditRedo()
-	strcmp(t, text.Get("1.0", "end").String(), "hellworld")
+	strcmp(t, text.Get("1.0", "end"), "hellworld")
 
 	text.EditReset()
 	if text.EditUndo() {

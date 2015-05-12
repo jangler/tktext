@@ -29,13 +29,13 @@ var countRegexp = regexp.MustCompile(`^ ?([+-]) ?(-?\d+) ?([cil]\w*)`)
 var startEndRegexp = regexp.MustCompile(`^ ?(line|word)([se]\w*)`)
 var wordRegexp = regexp.MustCompile(`^\w$`)
 
-// Position represents a position in a text buffer.
+// Position denotes a position in a text buffer.
 type Position struct {
 	Line, Char int
 }
 
-// String returns a string representation of the position that can be used as
-// an index in buffer functions.
+// String returns a string representation of the Position that can be used as
+// an index in TkText functions.
 func (p Position) String() string {
 	return fmt.Sprintf("%d.%d", p.Line, p.Char)
 }
@@ -71,14 +71,14 @@ func (a markSort) Less(i, j int) bool {
 	return a[i].name < a[j].name
 }
 
-// TkText represents a text buffer.
+// TkText is a text buffer.
 type TkText struct {
 	lines, undoStack, redoStack *list.List
 	marks                       map[string]*mark
 	mutex                       *sync.RWMutex
 }
 
-// New returns an initialized TkText object.
+// New returns an initialized and empty TkText object.
 func New() *TkText {
 	b := TkText{list.New(), list.New(), list.New(), make(map[string]*mark),
 		&sync.RWMutex{}}
@@ -152,7 +152,7 @@ func (t *TkText) Compare(index1, index2 string) int {
 }
 
 // CountChars returns the number of UTF-8 characters between two indices. If
-// the first index is after the second, the result will be a negative number.
+// index1 is after index2, the result will be a negative number.
 func (t *TkText) CountChars(index1, index2 string) int {
 	pos1, pos2 := t.Index(index1), t.Index(index2)
 	reverse := comparePos(pos1, pos2) > 0
@@ -173,15 +173,16 @@ func (t *TkText) CountChars(index1, index2 string) int {
 	return n
 }
 
-// CountLines returns the number of line breaks between two indices. If the
-// first index is after the second, the result will be a negative number.
+// CountLines returns the number of line breaks between two indices. If index1
+// is after index2, the result will be a negative number.
 func (t *TkText) CountLines(index1, index2 string) int {
 	pos1, pos2 := t.Index(index1), t.Index(index2)
 	return pos2.Line - pos1.Line
 }
 
-// Index parses a string index and returns an equivalent Position. If the index
-// is badly formed, panic.
+// Index parses a string index and returns an equivalent valid Position in the
+// text buffer. If the index is badly formed, panic. For documentation on index
+// syntax, see http://www.tcl.tk/man/tcl8.5/TkCmd/text.htm#M7.
 func (t *TkText) Index(index string) Position {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
@@ -307,11 +308,14 @@ func (t *TkText) Index(index string) Position {
 	return pos
 }
 
-// Get returns the text from start to end indices in b.
-func (t *TkText) Get(startIndex, endIndex string) *bytes.Buffer {
+// Get returns the text between two indices as a string. If index1 is after
+// index2, an empty string will be returned.
+func (t *TkText) Get(index1, index2 string) string {
 	// Parse indices
-	start := t.Index(startIndex)
-	end := t.Index(endIndex)
+	start, end := t.Index(index1), t.Index(index2)
+	if comparePos(start, end) >= 0 {
+		return ""
+	}
 
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
@@ -345,7 +349,7 @@ func (t *TkText) Get(startIndex, endIndex string) *bytes.Buffer {
 		i++
 	}
 
-	return &text
+	return text.String()
 }
 
 func (t *TkText) del(startIndex, endIndex string, undo bool) {
@@ -431,10 +435,11 @@ func (t *TkText) del(startIndex, endIndex string, undo bool) {
 	}
 }
 
-// Delete deletes the text from start to end indices in b.
-func (t *TkText) Delete(startIndex, endIndex string) {
-	if t.Index(startIndex) != t.Index(endIndex) {
-		t.del(startIndex, endIndex, true)
+// Delete deletes the text from index1 to index2. If index1 is after index2, no
+// text is deleted.
+func (t *TkText) Delete(index1, index2 string) {
+	if t.Compare(index1, index2) < 0 {
+		t.del(index1, index2, true)
 		t.mutex.Lock()
 		t.redoStack.Init()
 		t.mutex.Unlock()
@@ -513,7 +518,7 @@ func (t *TkText) insert(index, s string, undo bool) {
 	}
 }
 
-// Insert inserts text at an index in b.
+// Insert inserts the given text at the given index.
 func (t *TkText) Insert(index, s string) {
 	if s != "" {
 		t.insert(index, s, true)
@@ -523,14 +528,16 @@ func (t *TkText) Insert(index, s string) {
 	}
 }
 
-// Replace replaces the text from start to end indices in b with string s.
-func (t *TkText) Replace(startIndex, endIndex, s string) {
-	t.Delete(startIndex, endIndex)
-	t.Insert(startIndex, s)
+// Replace replaces the text from index1 to index2 with the given text. If
+// index1 is after index2, the operation is equivalent to an insertion at
+// index1.
+func (t *TkText) Replace(index1, index2, s string) {
+	t.Delete(index1, index2)
+	t.Insert(index1, s)
 }
 
 // MarkGetGravity returns the gravity of the mark with the given name, or an
-// error if no mark with the given name exists.
+// error if a mark with the given name is not set.
 func (t *TkText) MarkGetGravity(name string) (Gravity, error) {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
@@ -584,7 +591,8 @@ func (t *TkText) sortedMarks(reverse bool) []*mark {
 
 // MarkNext returns the name of the next mark at or after the given index. If
 // the given index is a mark, that mark will not be returned. An empty string
-// is returned if no mark is found.
+// is returned if no mark is found. This function can be used to step through
+// all set marks in order.
 func (t *TkText) MarkNext(index string) string {
 	pos := t.Index(index)
 	marks := t.sortedMarks(false)
@@ -602,7 +610,8 @@ func (t *TkText) MarkNext(index string) string {
 
 // MarkPrevious returns the name of the next mark at or before the given index.
 // If the given index is a mark, that mark will not be returned. An empty
-// string is returned if no mark is found.
+// string is returned if no mark is found. This function can be used to step
+// through all set marks in reverse order.
 func (t *TkText) MarkPrevious(index string) string {
 	pos := t.Index(index)
 	marks := t.sortedMarks(true)
@@ -618,8 +627,8 @@ func (t *TkText) MarkPrevious(index string) string {
 	return ""
 }
 
-// MarkSet sets a mark with the given name at the position at the given index.
-// If a mark with the given name is already set, its position is updated.
+// MarkSet sets a mark with the given name at the given index. If a mark with
+// the given name is already set, its position is updated.
 func (t *TkText) MarkSet(name, index string) {
 	pos := t.Index(index)
 	t.mutex.Lock()
@@ -637,15 +646,9 @@ func (t *TkText) MarkUnset(name ...string) {
 	t.mutex.Unlock()
 }
 
-// NumLines returns the number of lines of text in the buffer.
-func (t *TkText) NumLines() int {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
-	return t.lines.Len()
-}
-
-// EditUndo undoes changes to the buffer until a separator is encountered or
-// the undo stack is empty.
+// EditUndo undoes changes to the buffer until a separator is encountered after
+// at least one change, or until the undo stack is empty. Returns true if and
+// only if a change was undone.
 func (t *TkText) EditUndo(marks ...string) bool {
 	i, loop := 0, true
 	for loop {
@@ -675,8 +678,9 @@ func (t *TkText) EditUndo(marks ...string) bool {
 	return i > 0
 }
 
-// EditRedo redoes changes to the buffer until a separator is encountered or
-// the undo stack is empty. Redone changes are pushed onto the undo stack.
+// EditRedo redoes changes to the buffer until a separator is encountered after
+// at least one change, or the redo stack is empty. Redone changes are pushed
+// onto the undo stack. Returns true if and only if a change was redone.
 func (t *TkText) EditRedo() bool {
 	i, loop, redone := 0, true, false
 	for loop {
@@ -708,8 +712,8 @@ func (t *TkText) EditRedo() bool {
 	return redone
 }
 
-// EditSeparator pushes an edit separator onto the undo stack if a separator is
-// not already on top.
+// EditSeparator pushes a separator onto the undo stack if a separator is not
+// already on top.
 func (t *TkText) EditSeparator() {
 	t.mutex.Lock()
 	front := t.undoStack.Front()
@@ -725,7 +729,7 @@ func (t *TkText) EditSeparator() {
 	t.mutex.Unlock()
 }
 
-// EditReset clears the buffer's undo and redo stacks.
+// EditReset clears the undo and redo stacks.
 func (t *TkText) EditReset() {
 	t.mutex.Lock()
 	t.undoStack.Init()
