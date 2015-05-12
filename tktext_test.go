@@ -373,6 +373,16 @@ func TestUndo(t *testing.T) {
 	text.Delete("1.8", "1.10")
 	text.Delete("1.8", "1.10")
 	text.Delete("1.4", "1.8")
+
+	text.SetUndo(false)
+	if text.EditUndo() {
+		t.Error("EditUndo returned true when undo is disabled")
+	}
+	if text.EditRedo() {
+		t.Error("EditRedo returned true when undo is disabled")
+	}
+	text.SetUndo(true)
+
 	text.EditUndo()
 	strcmp(t, text.Get("1.0", "end"), "hello there world")
 	text.EditRedo()

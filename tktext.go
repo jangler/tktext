@@ -20,8 +20,7 @@ import (
 )
 
 // Gravity determines the behavior of a mark during insertions at its position.
-// Right gravity, the default, means that the mark remains to the right of the
-// inserted text, and left gravity means that the mark remains to the left.
+// Right gravity is the default.
 type Gravity uint8
 
 const (
@@ -76,25 +75,26 @@ func (a markSort) Less(i, j int) bool {
 	return a[i].name < a[j].name
 }
 
-// TkText is a text buffer.
+// TkText is a text buffer. Internally, the contents are stored as a doubly
+// linked list of line strings.
 type TkText struct {
 	lines                *list.List
 	undoStack, redoStack *list.List
 	marks                map[string]*mark
 	mutex                *sync.RWMutex
-	modified             bool
+	undo, modified       bool
 	saveEndPos           Position
 	checksum             [md5.Size]byte
 }
 
-// New returns an initialized and empty TkText object.
+// New returns an initialized and empty TkText buffer.
 func New() *TkText {
 	b := TkText{
 		list.New(),
 		list.New(), list.New(),
 		make(map[string]*mark),
 		&sync.RWMutex{},
-		false,
+		true, false,
 		Position{1, 0},
 		md5.Sum([]byte{}),
 	}
@@ -698,7 +698,12 @@ func (t *TkText) EditSetModified(modified bool) {
 // EditUndo undoes changes to the buffer until a separator is encountered after
 // at least one change, or until the undo stack is empty. Undone changes are
 // pushed onto the redo stack. Returns true if and only if a change was undone.
+// If the undo mechanism is disabled for the buffer, the function returns false
+// with no effect.
 func (t *TkText) EditUndo() bool {
+	if !t.undo {
+		return false
+	}
 	i, loop := 0, true
 	for loop {
 		t.mutex.RLock()
@@ -730,7 +735,12 @@ func (t *TkText) EditUndo() bool {
 // EditRedo redoes changes to the buffer until a separator is encountered after
 // at least one change, or until the redo stack is empty. Redone changes are
 // pushed onto the undo stack. Returns true if and only if a change was redone.
+// If the undo mechanism is disabled for the buffer, the function returns false
+// with no effect.
 func (t *TkText) EditRedo() bool {
+	if !t.undo {
+		return false
+	}
 	i, loop, redone := 0, true, false
 	for loop {
 		t.mutex.RLock()
@@ -762,7 +772,7 @@ func (t *TkText) EditRedo() bool {
 }
 
 // EditSeparator pushes a separator onto the undo stack if a separator is not
-// already on top.
+// already on top and the stack is not empty.
 func (t *TkText) EditSeparator() {
 	t.mutex.Lock()
 	front := t.undoStack.Front()
@@ -783,5 +793,13 @@ func (t *TkText) EditReset() {
 	t.mutex.Lock()
 	t.undoStack.Init()
 	t.redoStack.Init()
+	t.mutex.Unlock()
+}
+
+// SetUndo enables or disables the undo mechanism for the buffer. The mechanism
+// is enabled by default.
+func (t *TkText) SetUndo(enabled bool) {
+	t.mutex.Lock()
+	t.undo = enabled
 	t.mutex.Unlock()
 }
