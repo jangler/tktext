@@ -861,7 +861,7 @@ func (t *TkText) maxLine() int {
 
 // XView returns two fractions in the range [0, 1]. The first describes the
 // fraction of text in the buffer that is off-screen to the left, and the
-// second describes the fraction that is off-screen to the right.
+// second describes the fraction that is NOT off-screen to the right.
 func (t *TkText) XView() (left, right float64) {
 	t.mutex.RLock()
 	maxLen := t.maxLine()
@@ -870,12 +870,14 @@ func (t *TkText) XView() (left, right float64) {
 	}
 	if maxLen != 0 {
 		left = float64(t.xScroll) / float64(maxLen)
+		right = float64(t.xScroll + t.width) / float64(maxLen)
+		if right > 1 {
+			right = 1
+		}
+	} else {
+		right = 1
 	}
-	right = float64(maxLen - t.width - t.xScroll) / float64(maxLen)
 	t.mutex.RUnlock()
-	if right < 0 {
-		right = 0
-	}
 	return
 }
 
