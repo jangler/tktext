@@ -17,6 +17,7 @@ commands:
 - insert
 - mark
 - replace
+- xview
 
 Installation
 ------------

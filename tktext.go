@@ -99,6 +99,7 @@ type TkText struct {
 	width, height        int
 	tabStop              int
 	wrapMode             WrapMode
+	xScroll, yScroll     int
 }
 
 // New returns an initialized and empty TkText buffer.
@@ -114,6 +115,7 @@ func New() *TkText {
 		0, 0,
 		8,
 		None,
+		0, 0,
 	}
 	b.lines.PushBack("")
 	return &b
@@ -843,5 +845,62 @@ func (t *TkText) SetUndo(enabled bool) {
 func (t *TkText) SetWrap(mode WrapMode) {
 	t.mutex.Lock()
 	t.wrapMode = mode
+	t.mutex.Unlock()
+}
+
+func (t *TkText) maxLine() int {
+	maxLen := 0
+	for line := t.lines.Front(); line != nil; line = line.Next() {
+		length := columns(line.Value.(string), t.tabStop)
+		if length > maxLen {
+			maxLen = length
+		}
+	}
+	return maxLen
+}
+
+// XView returns two fractions in the range [0, 1]. The first describes the
+// fraction of text in the buffer that is off-screen to the left, and the
+// second describes the fraction that is off-screen to the right.
+func (t *TkText) XView() (left, right float64) {
+	t.mutex.RLock()
+	maxLen := t.maxLine()
+	if t.wrapMode != None && maxLen > t.width {
+		maxLen = t.width
+	}
+	if maxLen != 0 {
+		left = float64(t.xScroll) / float64(maxLen)
+	}
+	right = float64(maxLen - t.width - t.xScroll) / float64(maxLen)
+	t.mutex.RUnlock()
+	if right < 0 {
+		right = 0
+	}
+	return
+}
+
+// XViewMoveTo adjusts the view so that the given fraction of text in the
+// buffer is off-screen to the left.
+func (t *TkText) XViewMoveTo(fraction float64) {
+	t.mutex.RLock()
+	maxLen := t.maxLine()
+	t.mutex.RUnlock()
+	if maxLen > 0 {
+		t.mutex.Lock()
+		t.xScroll = int(fraction * float64(maxLen))
+		t.mutex.Unlock()
+	}
+}
+
+// XViewScroll shifts the horizontal scrolling by the given number of character
+// widths.
+func (t *TkText) XViewScroll(chars int) {
+	t.mutex.Lock()
+	t.xScroll += chars
+	if maxLen := t.maxLine(); t.xScroll > maxLen {
+		t.xScroll = maxLen
+	} else if t.xScroll < 0 {
+		t.xScroll = 0
+	}
 	t.mutex.Unlock()
 }

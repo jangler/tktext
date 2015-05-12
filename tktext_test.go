@@ -411,3 +411,63 @@ func TestSetDisplayVars(t *testing.T) {
 	text.SetWrap(Char)
 	// Results can only be tested once other display functions are implemented.
 }
+
+func TestXView(t *testing.T) {
+	text := New()
+	text.XView() // Just make sure it doesn't panic if not initialized
+	text.SetSize(9, 1)
+	if left, right := text.XView(); left != 0 || right != 0 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.0)
+	}
+	text.Insert("end", "\nampersand")
+	if left, right := text.XView(); left != 0 || right != 0 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.0)
+	}
+	text.Insert("end", ".")
+	if left, right := text.XView(); left != 0 || right != 0.1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.1)
+	}
+	text.Replace("1.0", "end", "\thi")
+	if left, right := text.XView(); left != 0 || right != 0.1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.1)
+	}
+	text.SetWrap(Char)
+	if left, right := text.XView(); left != 0 || right != 0 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.0)
+	}
+	text.SetWrap(Word)
+	text.Replace("1.0", "end", "rhinoceros hippopotamus")
+	if left, right := text.XView(); left != 0 || right != 0 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.0)
+	}
+
+	// XViewMoveTo
+	text.Replace("1.0", "end", "rhinoceros")
+	text.SetWrap(None)
+	text.XViewMoveTo(1)
+	if left, right := text.XView(); left != 1 || right != 0 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 1.0, 0.0)
+	}
+	text.XViewMoveTo(0.1)
+	if left, right := text.XView(); left != 0.1 || right != 0 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.1, 0.0)
+	}
+	text.XViewMoveTo(0)
+	if left, right := text.XView(); left != 0 || right != 0.1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.1)
+	}
+
+	// XViewScroll
+	text.XViewScroll(1)
+	if left, right := text.XView(); left != 0.1 || right != 0 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.1, 0.0)
+	}
+	text.XViewScroll(10)
+	if left, right := text.XView(); left != 1 || right != 0 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 1.0, 0.0)
+	}
+	text.XViewScroll(-11)
+	if left, right := text.XView(); left != 0 || right != 0.1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.1)
+	}
+}
