@@ -9,6 +9,7 @@ package tktext
 import (
 	"bytes"
 	"container/list"
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"regexp"
@@ -77,15 +78,26 @@ func (a markSort) Less(i, j int) bool {
 
 // TkText is a text buffer.
 type TkText struct {
-	lines, undoStack, redoStack *list.List
-	marks                       map[string]*mark
-	mutex                       *sync.RWMutex
+	lines                *list.List
+	undoStack, redoStack *list.List
+	marks                map[string]*mark
+	mutex                *sync.RWMutex
+	modified             bool
+	saveEndPos           Position
+	checksum             [md5.Size]byte
 }
 
 // New returns an initialized and empty TkText object.
 func New() *TkText {
-	b := TkText{list.New(), list.New(), list.New(), make(map[string]*mark),
-		&sync.RWMutex{}}
+	b := TkText{
+		list.New(),
+		list.New(), list.New(),
+		make(map[string]*mark),
+		&sync.RWMutex{},
+		false,
+		Position{1, 0},
+		md5.Sum([]byte{}),
+	}
 	b.lines.PushBack("")
 	return &b
 }
@@ -649,9 +661,43 @@ func (t *TkText) MarkUnset(name ...string) {
 	t.mutex.Unlock()
 }
 
+// EditGetModified returns true if and only if the buffer contents differ from
+// the last point at which the modified flag was set to false, or if the
+// modified flag is set to true.
+func (t *TkText) EditGetModified() bool {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	if t.modified {
+		return true
+	}
+	endPos := Position{t.lines.Len(), len(t.lines.Back().Value.(string))}
+	if endPos != t.saveEndPos {
+		return true
+	}
+	return t.checksum != md5.Sum([]byte(t.Get("1.0", "end")))
+}
+
+// EditSetModified sets the modified flag of the widget. If the flag is set to
+// false, EditGetModified compares the buffer contents to the current state to
+// determine whether the buffer was modified. If the flag is set to true,
+// EditGetModified always returns true.
+func (t *TkText) EditSetModified(modified bool) {
+	t.mutex.Lock()
+	t.modified = modified
+	if !modified {
+		t.saveEndPos = Position{t.lines.Len(),
+			len(t.lines.Back().Value.(string))}
+		t.mutex.Unlock()
+		contents := t.Get("1.0", "end")
+		t.mutex.Lock()
+		t.checksum = md5.Sum([]byte(contents))
+	}
+	t.mutex.Unlock()
+}
+
 // EditUndo undoes changes to the buffer until a separator is encountered after
-// at least one change, or until the undo stack is empty. Returns true if and
-// only if a change was undone.
+// at least one change, or until the undo stack is empty. Undone changes are
+// pushed onto the redo stack. Returns true if and only if a change was undone.
 func (t *TkText) EditUndo() bool {
 	i, loop := 0, true
 	for loop {
@@ -682,8 +728,8 @@ func (t *TkText) EditUndo() bool {
 }
 
 // EditRedo redoes changes to the buffer until a separator is encountered after
-// at least one change, or the redo stack is empty. Redone changes are pushed
-// onto the undo stack. Returns true if and only if a change was redone.
+// at least one change, or until the redo stack is empty. Redone changes are
+// pushed onto the undo stack. Returns true if and only if a change was redone.
 func (t *TkText) EditRedo() bool {
 	i, loop, redone := 0, true, false
 	for loop {

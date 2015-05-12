@@ -78,6 +78,29 @@ func TestCount(t *testing.T) {
 	intcmp(t, text.CountLines("end", "1.0"), -2)
 }
 
+func TestEditModified(t *testing.T) {
+	text := New()
+	if text.EditGetModified() {
+		t.Error("EditGetModified returned true for new buffer")
+	}
+	text.Insert("end", "hello")
+	if !text.EditGetModified() {
+		t.Error("EditGetModified returned false for changed buffer")
+	}
+	text.EditSetModified(false)
+	if text.EditGetModified() {
+		t.Error("EditGetModified returned true after flag was set to false")
+	}
+	text.Replace("1.0", "end", "world")
+	if !text.EditGetModified() {
+		t.Error("EditGetModified returned false for changed buffer")
+	}
+	text.EditSetModified(true)
+	if !text.EditGetModified() {
+		t.Error("EditGetModified returned false after flag was set to true")
+	}
+}
+
 func TestIndex(t *testing.T) {
 	text := New()
 	text.Insert("1.0", "hello\nworld")

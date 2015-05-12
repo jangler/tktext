@@ -11,7 +11,7 @@ commands:
 - compare
 - count
 - delete
-- edit (partial)
+- edit
 - get
 - index
 - insert
