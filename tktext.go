@@ -421,6 +421,7 @@ func (t *TkText) del(startIndex, endIndex string, undo bool) {
 		}
 	}
 
+	undo = undo && t.undo
 	t.mutex.Unlock()
 
 	if undo {
@@ -501,6 +502,7 @@ func (t *TkText) insert(index, s string, undo bool) {
 	startLine.Value = startLine.Value.(string)[:start.Char] +
 		t.lines.Remove(startLine.Next()).(string)
 
+	undo = undo && t.undo
 	t.mutex.Unlock()
 
 	if undo {
