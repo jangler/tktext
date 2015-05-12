@@ -709,6 +709,7 @@ func (t *TkText) Insert(index, s string) {
 // index1 is after index2, the operation is equivalent to an insertion at
 // index1.
 func (t *TkText) Replace(index1, index2, s string) {
+	index1 = t.Index(index1).String()
 	t.Delete(index1, index2)
 	t.Insert(index1, s)
 }

@@ -303,6 +303,9 @@ func TestReplace(t *testing.T) {
 	strcmp(t, text.Get("1.0", "end"), "hands")
 	text.Replace("end", "1.0", " down")
 	strcmp(t, text.Get("1.0", "end"), "hands down")
+	text.Replace("1.0", "end", "hello\nworld")
+	text.Replace("1.end", "2.0", "\t")
+	strcmp(t, text.Get("1.0", "end"), "hello\tworld")
 }
 
 func TestMarkGravity(t *testing.T) {
