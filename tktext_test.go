@@ -227,7 +227,7 @@ func TestMarkNames(t *testing.T) {
 	}
 	names2 := text.MarkNames()
 	sort.StringSlice(names2).Sort()
-	for i, _ := range names1 {
+	for i := range names1 {
 		if names1[i] != names2[i] {
 			t.Error("MarkNames did not return correct names")
 		}

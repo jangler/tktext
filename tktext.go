@@ -1,5 +1,9 @@
-// Package tktext implements a text-editing buffer with an interface like that
-// of the Tcl/Tk text widget. The buffer is thread-safe.
+// Package tktext implements a text-editing buffer with an API and capabilities
+// like that of the Tcl/Tk text widget. The buffer is thread-safe.
+//
+// Note that any function that takes an index string as a parameter will panic
+// if the index is badly formed. For documentation on index syntax, see
+// http://www.tcl.tk/man/tcl8.5/TkCmd/text.htm#M7.
 package tktext
 
 import (
@@ -20,8 +24,8 @@ import (
 type Gravity uint8
 
 const (
-	Right Gravity = iota
-	Left
+	Right Gravity = iota // Mark remains to right of inserted text.
+	Left                 // Mark remains to left of inserted text.
 )
 
 var lineCharRegexp = regexp.MustCompile(`^(\d+)\.(\w+)`)
@@ -174,15 +178,14 @@ func (t *TkText) CountChars(index1, index2 string) int {
 }
 
 // CountLines returns the number of line breaks between two indices. If index1
-// is after index2, the result will be a negative number.
+// is after index2, the result will be a negative number (or zero).
 func (t *TkText) CountLines(index1, index2 string) int {
 	pos1, pos2 := t.Index(index1), t.Index(index2)
 	return pos2.Line - pos1.Line
 }
 
 // Index parses a string index and returns an equivalent valid Position in the
-// text buffer. If the index is badly formed, panic. For documentation on index
-// syntax, see http://www.tcl.tk/man/tcl8.5/TkCmd/text.htm#M7.
+// text buffer.
 func (t *TkText) Index(index string) Position {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
@@ -566,7 +569,7 @@ func (t *TkText) MarkNames() []string {
 	t.mutex.RLock()
 	names := make([]string, len(t.marks))
 	i := 0
-	for k, _ := range t.marks {
+	for k := range t.marks {
 		names[i] = k
 		i++
 	}
@@ -649,7 +652,7 @@ func (t *TkText) MarkUnset(name ...string) {
 // EditUndo undoes changes to the buffer until a separator is encountered after
 // at least one change, or until the undo stack is empty. Returns true if and
 // only if a change was undone.
-func (t *TkText) EditUndo(marks ...string) bool {
+func (t *TkText) EditUndo() bool {
 	i, loop := 0, true
 	for loop {
 		t.mutex.RLock()
