@@ -35,7 +35,6 @@ type WrapMode uint8
 const (
 	None WrapMode = iota // Lines are not wrapped.
 	Char                 // Wrapping line breaks may occur at any character.
-	Word                 // Wrapping line breaks will not occur within a word.
 
 )
 
@@ -213,6 +212,49 @@ func (t *TkText) CountChars(index1, index2 string) int {
 func (t *TkText) CountLines(index1, index2 string) int {
 	pos1, pos2 := t.Index(index1), t.Index(index2)
 	return pos2.Line - pos1.Line
+}
+
+func countDisplayLinesString(s string, wrap WrapMode, tab, width int) int {
+	n := 0
+	for _, line := range strings.Split(s, "\n") {
+		if line == "" {
+			n++
+			continue
+		}
+		length := len(expand(line, tab))
+		for length > 0 {
+			length -= width
+			n++
+		}
+	}
+	return n
+}
+
+// CountDisplayLines returns the number of displayed line breaks between two
+// indices, taking wrapping into account. If index1 is after index2, the result
+// will be a negative number (or zero).
+func (t *TkText) CountDisplayLines(index1, index2 string) int {
+	pos1, pos2 := t.Index(index1), t.Index(index2)
+	t.mutex.RLock()
+	wrapMode, tabStop, width := t.wrapMode, t.tabStop, t.width
+	t.mutex.RUnlock()
+
+	if wrapMode == None || width <= 0 {
+		return pos2.Line - pos1.Line
+	}
+	index1, index2 = pos1.String(), pos2.String()
+	reverse := comparePos(pos1, pos2) > 0
+	if reverse {
+		index1, index2 = index2, index1
+	}
+	n := countDisplayLinesString(t.Get(index1+" linestart", index2),
+		wrapMode, tabStop, width)
+	n -= countDisplayLinesString(t.Get(index1+" linestart", index1),
+		wrapMode, tabStop, width)
+	if reverse {
+		n = -n
+	}
+	return n
 }
 
 // Index parses a string index and returns an equivalent valid Position in the
@@ -870,7 +912,7 @@ func (t *TkText) XView() (left, right float64) {
 	}
 	if maxLen != 0 {
 		left = float64(t.xScroll) / float64(maxLen)
-		right = float64(t.xScroll + t.width) / float64(maxLen)
+		right = float64(t.xScroll+t.width) / float64(maxLen)
 		if right > 1 {
 			right = 1
 		}

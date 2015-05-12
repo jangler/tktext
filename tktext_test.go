@@ -76,6 +76,16 @@ func TestCount(t *testing.T) {
 	intcmp(t, text.CountLines("2.0", "1.17"), -1)
 	intcmp(t, text.CountLines("1.0", "3.0"), 2)
 	intcmp(t, text.CountLines("end", "1.0"), -2)
+
+	intcmp(t, text.CountDisplayLines("1.0", "end"), 2)
+	text.SetSize(80, 0)
+	text.SetWrap(Char)
+	intcmp(t, text.CountDisplayLines("1.0", "end"), 2)
+	text.SetSize(9, 0)
+	intcmp(t, text.CountDisplayLines("end", "1.0"), -6)
+	intcmp(t, text.CountDisplayLines("1.0", "1.9"), 0)
+	intcmp(t, text.CountDisplayLines("1.9", "1.10"), 1)
+	intcmp(t, text.CountDisplayLines("1.10", "1.end"), 0)
 }
 
 func TestEditModified(t *testing.T) {
@@ -432,11 +442,6 @@ func TestXView(t *testing.T) {
 		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.9)
 	}
 	text.SetWrap(Char)
-	if left, right := text.XView(); left != 0 || right != 1 {
-		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 1.0)
-	}
-	text.SetWrap(Word)
-	text.Replace("1.0", "end", "rhinoceros hippopotamus")
 	if left, right := text.XView(); left != 0 || right != 1 {
 		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 1.0)
 	}

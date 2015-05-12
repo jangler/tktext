@@ -2,7 +2,7 @@ package tktext
 
 import "sync"
 
-var p []rune // Reuse the same array for efficiency's sake
+var p []rune                // Reuse the same array for efficiency's sake
 var mutex = &sync.RWMutex{} // But that means we have to put a mutex on it
 
 // Expand tabs to spaces
