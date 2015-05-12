@@ -18,6 +18,7 @@ commands:
 - mark
 - replace
 - xview
+- yview
 
 Installation
 ------------

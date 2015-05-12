@@ -424,7 +424,7 @@ func TestSetDisplayVars(t *testing.T) {
 
 func TestXView(t *testing.T) {
 	text := New()
-	text.XView() // Just make sure it doesn't panic if not initialized
+	text.XView() // Undefined, but make sure there's no panic
 	text.SetSize(9, 1)
 	if left, right := text.XView(); left != 0 || right != 1 {
 		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 1.0)
@@ -474,5 +474,34 @@ func TestXView(t *testing.T) {
 	text.XViewScroll(-11)
 	if left, right := text.XView(); left != 0 || right != 0.9 {
 		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.9)
+	}
+}
+
+func TestYView(t *testing.T) {
+	text := New()
+	text.YView() // Undefined, but make sure there's no panic
+	text.SetSize(3, 3)
+	if top, bot := text.YView(); top != 0 || bot != 1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 0.0, 1.0)
+	}
+	text.Insert("end", "hello\nthere\nworld")
+	if top, bot := text.YView(); top != 0 || bot != 1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 0.0, 1.0)
+	}
+	text.SetWrap(Char)
+	if top, bot := text.YView(); top != 0 || bot != 0.5 {
+		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 0.0, 0.5)
+	}
+	text.YViewMoveTo(0.5)
+	if top, bot := text.YView(); top != 0.5 || bot != 1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 0.5, 1.0)
+	}
+	text.YViewScroll(10)
+	if top, bot := text.YView(); top != 1 || bot != 1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 1.0, 1.0)
+	}
+	text.YViewScroll(-10)
+	if top, bot := text.YView(); top != 0 || bot != 0.5 {
+		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 0.0, 0.5)
 	}
 }

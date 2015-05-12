@@ -902,8 +902,8 @@ func (t *TkText) maxLine() int {
 }
 
 // XView returns two fractions in the range [0, 1]. The first describes the
-// fraction of text in the buffer that is off-screen to the left, and the
-// second describes the fraction that is NOT off-screen to the right.
+// fraction of columns in the buffer that are off-screen to the left, and the
+// second describes the fraction that are NOT off-screen to the right.
 func (t *TkText) XView() (left, right float64) {
 	t.mutex.RLock()
 	maxLen := t.maxLine()
@@ -923,21 +923,17 @@ func (t *TkText) XView() (left, right float64) {
 	return
 }
 
-// XViewMoveTo adjusts the view so that the given fraction of text in the
-// buffer is off-screen to the left.
+// XViewMoveTo adjusts the view so that the given fraction of columns in the
+// buffer are off-screen to the left.
 func (t *TkText) XViewMoveTo(fraction float64) {
-	t.mutex.RLock()
+	t.mutex.Lock()
 	maxLen := t.maxLine()
-	t.mutex.RUnlock()
-	if maxLen > 0 {
-		t.mutex.Lock()
-		t.xScroll = int(fraction * float64(maxLen))
-		t.mutex.Unlock()
-	}
+	t.xScroll = int(fraction * float64(maxLen))
+	t.mutex.Unlock()
 }
 
-// XViewScroll shifts the horizontal scrolling by the given number of character
-// widths.
+// XViewScroll shifts the horizontal scrolling right by the given number of
+// columns.
 func (t *TkText) XViewScroll(chars int) {
 	t.mutex.Lock()
 	t.xScroll += chars
@@ -945,6 +941,43 @@ func (t *TkText) XViewScroll(chars int) {
 		t.xScroll = maxLen
 	} else if t.xScroll < 0 {
 		t.xScroll = 0
+	}
+	t.mutex.Unlock()
+}
+
+// YView returns two fractions in the range [0, 1]. The first describes the
+// fraction of lines in the buffer that are off-screen to the top, and the
+// second describes the fraction that are NOT off-screen to the bottom.
+func (t *TkText) YView() (top, bottom float64) {
+	nLines := t.CountDisplayLines("1.0", "end") + 1
+	t.mutex.RLock()
+	top = float64(t.yScroll) / float64(nLines)
+	bottom = float64(t.yScroll+t.height) / float64(nLines)
+	t.mutex.RUnlock()
+	if bottom > 1 {
+		bottom = 1
+	}
+	return
+}
+
+// YViewMoveTo adjusts the view so that the given fraction of lines in the
+// buffer are off-screen to the top.
+func (t *TkText) YViewMoveTo(fraction float64) {
+	nLines := t.CountDisplayLines("1.0", "end") + 1
+	t.mutex.Lock()
+	t.yScroll = int(fraction * float64(nLines))
+	t.mutex.Unlock()
+}
+
+// YViewScroll shifts the vertical scrolling down by the given number of lines.
+func (t *TkText) YViewScroll(lines int) {
+	nLines := t.CountDisplayLines("1.0", "end") + 1
+	t.mutex.Lock()
+	t.yScroll += lines
+	if t.yScroll > nLines {
+		t.yScroll = nLines
+	} else if t.yScroll < 0 {
+		t.yScroll = 0
 	}
 	t.mutex.Unlock()
 }
