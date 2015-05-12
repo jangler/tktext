@@ -65,6 +65,11 @@ func TestBBox(t *testing.T) {
 	if vals := text.BBox("2.4"); vals[0] != 1 || vals[1] != 3 {
 		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], 1, 3)
 	}
+	text.Replace("1.0", "end", "hello\tworld")
+	text.Replace("1.0", "end", "hello        world")
+	if vals := text.BBox("end"); vals[0] != 3 || vals[1] != 5 {
+		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], 3, 5)
+	}
 }
 
 func TestCompare(t *testing.T) {
@@ -125,6 +130,10 @@ func TestDLineInfo(t *testing.T) {
 	if a := text.DLineInfo("1.11"); a[0] != 5 || a[1] != 1 || a[2] != 5 {
 		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 5, 1, 5)
 	}
+	text.Replace("1.0", "end", "\thi")
+	if a := text.DLineInfo("1.1"); a[0] != 2 || a[1] != 1 || a[2] != 4 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 2, 1, 4)
+	}
 }
 
 func TestEditModified(t *testing.T) {
@@ -147,6 +156,44 @@ func TestEditModified(t *testing.T) {
 	text.EditSetModified(true)
 	if !text.EditGetModified() {
 		t.Error("EditGetModified returned false after flag was set to true")
+	}
+}
+
+func TestGetScreenLines(t *testing.T) {
+	text := New()
+	lines := text.GetScreenLines()
+	if len(lines) != 0 {
+		t.Errorf("GetScreenLines returned %#v for sizeless buffer", lines)
+	}
+	text.SetSize(5, 3)
+	lines = text.GetScreenLines()
+	if len(lines) != 1 || lines[0] != "" {
+		t.Errorf("GetScreenLines returned %#v for empty buffer", lines)
+	}
+	text.Insert("end", "ape\nhippopotamus\nzebra")
+	lines = text.GetScreenLines()
+	if len(lines) != 3 || lines[0] != "ape" || lines[1] != "hippo" ||
+		lines[2] != "zebra" {
+		t.Errorf("GetScreenLines returned %#v for non-wrapping buffer", lines)
+	}
+	text.XViewScroll(4)
+	lines = text.GetScreenLines()
+	if len(lines) != 3 || lines[0] != "" || lines[1] != "opota" ||
+		lines[2] != "a" {
+		t.Errorf("GetScreenLines returned %#v for x-scrolled buffer", lines)
+	}
+	text.XViewMoveTo(0)
+	text.SetWrap(Char)
+	lines = text.GetScreenLines()
+	if len(lines) != 3 || lines[0] != "ape" || lines[1] != "hippo" ||
+		lines[2] != "potam" {
+		t.Errorf("GetScreenLines returned %#v for wrapping buffer", lines)
+	}
+	text.Insert("3.0", "\n")
+	text.YViewScroll(4)
+	lines = text.GetScreenLines()
+	if len(lines) != 2 || lines[0] != "" || lines[1] != "zebra" {
+		t.Errorf("GetScreenLines returned %#v for y-scrolled buffer", lines)
 	}
 }
 

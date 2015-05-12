@@ -2,8 +2,8 @@ TkText
 ======
 A Go library for text editing with an API that imitates that of the Tcl/Tk
 text widget. Note that this library does *not* provide a GUI like Tk does.
-Displaying the text is left up to the client, although in the future this
-library may provide functions to assist drawing fixed-width text views.
+Displaying the text is left up to the client, although the library provides
+functions to assist drawing fixed-width text views.
 
 Currently, this library supports equivalents to the following Tk text widget
 commands:

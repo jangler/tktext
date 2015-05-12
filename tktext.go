@@ -182,10 +182,13 @@ func comparePos(pos1, pos2 Position) int {
 // index on the screen. The resulting values may be beyond the bounds of the
 // screen.
 func (t *TkText) BBox(index string) []int {
-	col := t.Index(index).Char - t.xScroll
 	t.mutex.RLock()
+	col := len(expand(t.Get(index+" linestart", index), t.tabStop)) - t.xScroll
 	if t.wrapMode == Char {
 		col %= t.width
+		if col == 0 && t.Compare(index, index+" lineend") == 0 {
+			col = t.width
+		}
 	}
 	t.mutex.RUnlock()
 	return []int{col, t.DLineInfo(index)[1]}
@@ -278,11 +281,11 @@ func (t *TkText) DLineInfo(index string) []int {
 	var x, y, w int
 	t.mutex.RLock()
 	y = t.CountDisplayLines("1.0", index) - t.yScroll
-	w = t.CountChars(index+" linestart", index+" lineend")
+	w = len(expand(t.Get(index+" linestart", index+" lineend"), t.tabStop))
 	if t.wrapMode == None {
-		x = t.Index(index).Char
+		x = len(expand(t.Get(index+" linestart", index), t.tabStop))
 	} else { // t.wrapMode == Char
-		line := t.Get(index+" linestart", index)
+		line := expand(t.Get(index+" linestart", index), t.tabStop)
 		length := len(line)
 		for length > t.width {
 			length -= t.width
@@ -297,6 +300,60 @@ func (t *TkText) DLineInfo(index string) []int {
 	x -= t.xScroll
 	t.mutex.RUnlock()
 	return []int{x, y, w}
+}
+
+// GetScreenLines returns a slice of strings, one for each display line on the
+// screen. The length of each line is no longer than the width of the screen.
+// Fewer lines may be returned if there are not enough to fill the screen.
+func (t *TkText) GetScreenLines() []string {
+	t.mutex.RLock()
+	lines := make([]string, t.height)
+	n := 0
+	if t.wrapMode == None {
+		line := t.getLine(t.yScroll + 1)
+		for line != nil && n < t.height {
+			s := expand(line.Value.(string), t.tabStop)
+			length := len(s)
+			min := t.xScroll
+			if min > length {
+				min = length
+			}
+			max := t.xScroll + t.width
+			if max > length {
+				max = length
+			}
+			lines[n] = s[min:max]
+			n++
+			line = line.Next()
+		}
+	} else { // t.wrapMode == Char
+		y := 0
+		line := t.lines.Front()
+		for line != nil && n < t.height {
+			s := expand(line.Value.(string), t.tabStop)
+			i := 0
+			length := len(s)
+			for (length > 0 || i == 0) && n < t.height {
+				if y >= t.yScroll {
+					if length <= t.width {
+						lines[n] = s
+					} else {
+						lines[n] = s[:t.width]
+					}
+					n++
+				}
+				if length > t.width {
+					s = s[t.width:]
+				}
+				length -= t.width
+				y++
+				i++
+			}
+			line = line.Next()
+		}
+	}
+	t.mutex.RUnlock()
+	return lines[:n]
 }
 
 // Index parses a string index and returns an equivalent valid Position in the
