@@ -403,3 +403,11 @@ func TestUndo(t *testing.T) {
 		t.Error("EditRedo returned true after TkText reset")
 	}
 }
+
+func TestSetDisplayVars(t *testing.T) {
+	text := New()
+	text.SetSize(80, 25)
+	text.SetTabStop(4)
+	text.SetWrap(Char)
+	// Results can only be tested once other display functions are implemented.
+}

@@ -28,6 +28,17 @@ const (
 	Left                 // Mark remains to left of inserted text.
 )
 
+// WrapMode determines the behavior of a text display when a line is too long
+// to fit in the window.
+type WrapMode uint8
+
+const (
+	None WrapMode = iota // Lines are not wrapped.
+	Char                 // Wrapping line breaks may occur at any character.
+	Word                 // Wrapping line breaks will not occur within a word.
+
+)
+
 var lineCharRegexp = regexp.MustCompile(`^(\d+)\.(\w+)`)
 var countRegexp = regexp.MustCompile(`^ ?([+-]) ?(-?\d+) ?([cil]\w*)`)
 var startEndRegexp = regexp.MustCompile(`^ ?(line|word)([se]\w*)`)
@@ -85,6 +96,9 @@ type TkText struct {
 	undo, modified       bool
 	saveEndPos           Position
 	checksum             [md5.Size]byte
+	width, height        int
+	tabStop              int
+	wrapMode             WrapMode
 }
 
 // New returns an initialized and empty TkText buffer.
@@ -97,6 +111,9 @@ func New() *TkText {
 		true, false,
 		Position{1, 0},
 		md5.Sum([]byte{}),
+		0, 0,
+		8,
+		None,
 	}
 	b.lines.PushBack("")
 	return &b
@@ -798,10 +815,33 @@ func (t *TkText) EditReset() {
 	t.mutex.Unlock()
 }
 
+// SetSize sets the text display's width and height in characters and lines,
+// respectively.
+func (t *TkText) SetSize(width, height int) {
+	t.mutex.Lock()
+	t.width, t.height = width, height
+	t.mutex.Unlock()
+}
+
+// SetTabStop sets the width in characters of the text display's tab stops.
+// The default is 8.
+func (t *TkText) SetTabStop(width int) {
+	t.mutex.Lock()
+	t.tabStop = width
+	t.mutex.Unlock()
+}
+
 // SetUndo enables or disables the undo mechanism for the buffer. The mechanism
 // is enabled by default.
 func (t *TkText) SetUndo(enabled bool) {
 	t.mutex.Lock()
 	t.undo = enabled
+	t.mutex.Unlock()
+}
+
+// SetWrap sets the wrap mode of the text display. The default is None.
+func (t *TkText) SetWrap(mode WrapMode) {
+	t.mutex.Lock()
+	t.wrapMode = mode
 	t.mutex.Unlock()
 }
