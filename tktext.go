@@ -183,10 +183,11 @@ func comparePos(pos1, pos2 Position) int {
 // screen.
 func (t *TkText) BBox(index string) []int {
 	t.mutex.RLock()
-	col := len(expand(t.Get(index+" linestart", index), t.tabStop)) - t.xScroll
+	line := expand(t.Get(index+" linestart", index), t.tabStop)
+	col := len(line) - t.xScroll
 	if t.wrapMode == Char {
 		col %= t.width
-		if col == 0 && t.Compare(index, index+" lineend") == 0 {
+		if col == 0 && line != "" && t.Compare(index, index+" lineend") == 0 {
 			col = t.width
 		}
 	}
