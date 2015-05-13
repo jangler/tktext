@@ -473,15 +473,6 @@ func TestUndo(t *testing.T) {
 	text.Delete("1.8", "1.10")
 	text.Delete("1.4", "1.8")
 
-	text.SetUndo(false)
-	if text.EditUndo() {
-		t.Error("EditUndo returned true when undo is disabled")
-	}
-	if text.EditRedo() {
-		t.Error("EditRedo returned true when undo is disabled")
-	}
-	text.SetUndo(true)
-
 	text.EditUndo()
 	strcmp(t, text.Get("1.0", "end"), "hello there world")
 	text.EditRedo()
@@ -500,6 +491,13 @@ func TestUndo(t *testing.T) {
 	}
 	if text.EditRedo() {
 		t.Error("EditRedo returned true after TkText reset")
+	}
+
+	text = New()
+	text.SetUndo(false)
+	text.Insert("1.0", "hello")
+	if text.EditUndo() {
+		t.Error("EditUndo returned true when undo mechanism is disabled")
 	}
 }
 
@@ -540,11 +538,6 @@ func TestSee(t *testing.T) {
 	}
 }
 
-func TestSetDisplayVars(t *testing.T) {
-	text := New()
-	text.SetTabStop(4) // TODO: Test in context of other display functions
-}
-
 func TestXView(t *testing.T) {
 	text := New()
 	text.XView() // Undefined, but make sure there's no panic
@@ -564,6 +557,11 @@ func TestXView(t *testing.T) {
 	if left, right := text.XView(); left != 0 || right != 0.9 {
 		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0.9)
 	}
+	text.SetTabStop(4)
+	if left, right := text.XView(); left != 0 || right != 1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 1.0)
+	}
+	text.SetTabStop(8)
 	text.SetWrap(Char)
 	if left, right := text.XView(); left != 0 || right != 1 {
 		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 1.0)

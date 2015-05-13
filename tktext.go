@@ -2,7 +2,7 @@
 // like that of the Tcl/Tk text widget. The buffer is thread-safe.
 //
 // Note that any function that takes an index string as a parameter will panic
-// if the index is badly formed. For documentation on index syntax, see
+// if the index is not well-formed. For documentation on index syntax, see
 // http://www.tcl.tk/man/tcl8.5/TkCmd/text.htm#M7.
 package tktext
 
@@ -35,7 +35,6 @@ type WrapMode uint8
 const (
 	None WrapMode = iota // Lines are not wrapped.
 	Char                 // Wrapping line breaks may occur at any character.
-
 )
 
 var lineCharRegexp = regexp.MustCompile(`^(\d+)\.(\w+)`)
@@ -180,7 +179,7 @@ func comparePos(pos1, pos2 Position) int {
 
 // BBox returns a slice containing the row and column numbers of the given
 // index on the screen. The resulting values may be beyond the bounds of the
-// screen.
+// screen, indicating that the index is not visible.
 func (t *TkText) BBox(index string) []int {
 	t.mutex.RLock()
 	line := expand(t.Get(index+" linestart", index), t.tabStop)
@@ -277,7 +276,7 @@ func (t *TkText) CountDisplayLines(index1, index2 string) int {
 // DLineInfo returns a slice containing the starting row and column numbers
 // of the display line containing the given index, as well as the width of
 // that line in columns. The resulting values may be beyond the bounds of the
-// screen.
+// screen, indicating that at least part of the line is not visible.
 func (t *TkText) DLineInfo(index string) []int {
 	var x, y, w int
 	t.mutex.RLock()
@@ -588,6 +587,7 @@ func (t *TkText) del(startIndex, endIndex string, undo bool) {
 	if undo {
 		sp := start.String()
 		ep := end.String()
+		t.redoStack.Init()
 		t.mutex.Lock()
 		front := t.undoStack.Front()
 		collapsed := false
@@ -613,13 +613,11 @@ func (t *TkText) del(startIndex, endIndex string, undo bool) {
 }
 
 // Delete deletes the text from index1 to index2. If index1 is after index2, no
-// text is deleted.
+// text is deleted. If the undo mechanism is enabled for the buffer, the
+// operation is pushed onto the undo stack, and the redo stack is cleared.
 func (t *TkText) Delete(index1, index2 string) {
 	if t.Compare(index1, index2) < 0 {
 		t.del(index1, index2, true)
-		t.mutex.Lock()
-		t.redoStack.Init()
-		t.mutex.Unlock()
 	}
 }
 
@@ -671,6 +669,7 @@ func (t *TkText) insert(index, s string, undo bool) {
 		end := t.Index(fmt.Sprintf("%s +%dc", start.String(), len(s)))
 		ep := end.String()
 		t.mutex.Lock()
+		t.redoStack.Init()
 		front := t.undoStack.Front()
 		collapsed := false
 		if front != nil {
@@ -696,19 +695,19 @@ func (t *TkText) insert(index, s string, undo bool) {
 	}
 }
 
-// Insert inserts the given text at the given index.
+// Insert inserts the given text at the given index. If the undo mechanism is
+// enabled for the buffer, the operation is pushed onto the undo stack, and
+// the redo stack is cleared.
 func (t *TkText) Insert(index, s string) {
 	if s != "" {
 		t.insert(index, s, true)
-		t.mutex.Lock()
-		t.redoStack.Init()
-		t.mutex.Unlock()
 	}
 }
 
 // Replace replaces the text from index1 to index2 with the given text. If
 // index1 is after index2, the operation is equivalent to an insertion at
-// index1.
+// index1. If the undo mechanism is enabled for the buffer, the operation is
+// pushed onto the undo stack, and the redo stack is cleared.
 func (t *TkText) Replace(index1, index2, s string) {
 	index1 = t.Index(index1).String()
 	t.Delete(index1, index2)
@@ -862,12 +861,7 @@ func (t *TkText) EditSetModified(modified bool) {
 // EditUndo undoes changes to the buffer until a separator is encountered after
 // at least one change, or until the undo stack is empty. Undone changes are
 // pushed onto the redo stack. Returns true if and only if a change was undone.
-// If the undo mechanism is disabled for the buffer, the function returns false
-// with no effect.
 func (t *TkText) EditUndo() bool {
-	if !t.undo {
-		return false
-	}
 	i, loop := 0, true
 	for loop {
 		t.mutex.RLock()
@@ -899,12 +893,7 @@ func (t *TkText) EditUndo() bool {
 // EditRedo redoes changes to the buffer until a separator is encountered after
 // at least one change, or until the redo stack is empty. Redone changes are
 // pushed onto the undo stack. Returns true if and only if a change was redone.
-// If the undo mechanism is disabled for the buffer, the function returns false
-// with no effect.
 func (t *TkText) EditRedo() bool {
-	if !t.undo {
-		return false
-	}
 	i, loop, redone := 0, true, false
 	for loop {
 		t.mutex.RLock()
@@ -963,7 +952,7 @@ func (t *TkText) EditReset() {
 // See adjusts the view so that the given index is visible. If the index is
 // already visible, no adjustment is made. If the index is less than one page
 // out of view, the view is adjusted so that the index is at the edge of the
-// screen. Otherwise, the view is centered on index.
+// screen. Otherwise, the view is centered on the index.
 func (t *TkText) See(index string) {
 	coords := t.BBox(index)
 	vars := [][]*int{
