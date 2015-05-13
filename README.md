@@ -19,6 +19,7 @@ commands:
 - insert
 - mark
 - replace
+- see
 - xview
 - yview
 

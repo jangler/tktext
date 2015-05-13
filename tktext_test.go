@@ -503,12 +503,46 @@ func TestUndo(t *testing.T) {
 	}
 }
 
+func TestSee(t *testing.T) {
+	text := New()
+	text.Insert("end",
+		"hello, world\n\n\nhello there, hi\n\nhello, hello\n\n")
+	text.SetSize(3, 3)
+
+	text.See("4.13")
+	if left, right := text.XView(); left != 0.8 || right != 1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.8, 1.0)
+	}
+	if top, bot := text.YView(); top != 0.125 || bot != 0.5 {
+		t.Errorf("YView() == %f, %f; want %f, %f", top, bot, 0.125, 0.5)
+	}
+
+	text.See("4.11")
+	if left, right := text.XView(); left != 11.0/15 || right != 14.0/15 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 11.0/15,
+			14.0/15)
+	}
+
+	text.See("8.end")
+	if left, right := text.XView(); left != 0 || right != 0.2 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0, 2)
+	}
+	if top, bot := text.YView(); top != 0.75 || bot != 1 {
+		t.Errorf("YView() == %f, %f; want %f, %f", top, bot, 0.75, 1.0)
+	}
+
+	text.See("1.0")
+	if left, right := text.XView(); left != 0 || right != 0.2 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.0, 0, 2)
+	}
+	if top, bot := text.YView(); top != 0 || bot != 0.375 {
+		t.Errorf("YView() == %f, %f; want %f, %f", top, bot, 0.0, 0.375)
+	}
+}
+
 func TestSetDisplayVars(t *testing.T) {
 	text := New()
-	text.SetSize(80, 25)
-	text.SetTabStop(4)
-	text.SetWrap(Char)
-	// Results can only be tested once other display functions are implemented.
+	text.SetTabStop(4) // TODO: Test in context of other display functions
 }
 
 func TestXView(t *testing.T) {

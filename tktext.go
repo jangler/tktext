@@ -959,6 +959,34 @@ func (t *TkText) EditReset() {
 	t.mutex.Unlock()
 }
 
+// See adjusts the view so that the given index is visible. If the index is
+// already visible, no adjustment is made. If the index is less than one page
+// out of view, the view is adjusted so that the index is at the edge of the
+// screen. Otherwise, the view is centered on index.
+func (t *TkText) See(index string) {
+	coords := t.BBox(index)
+	vars := [][]*int{
+		[]*int{&t.xScroll, &t.width},
+		[]*int{&t.yScroll, &t.height},
+	}
+	t.mutex.Lock()
+	for i, v := range vars {
+		if coords[i] < -*v[1] {
+			*v[0] += coords[i] - *v[1]/2
+		} else if coords[i] < 0 {
+			*v[0] += coords[i]
+		} else if coords[i] >= *v[1]*2 {
+			*v[0] += coords[i] - *v[1]/2
+		} else if coords[i] >= *v[1] {
+			*v[0] += coords[i] - *v[1] + 1
+		}
+		if *v[0] < 0 {
+			*v[0] = 0
+		}
+	}
+	t.mutex.Unlock()
+}
+
 // SetSize sets the text display's width and height in characters and lines,
 // respectively.
 func (t *TkText) SetSize(width, height int) {
