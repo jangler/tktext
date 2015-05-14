@@ -499,8 +499,9 @@ func TestUndo(t *testing.T) {
 	strcmp(t, text.Get("1.0", "end"), "")
 	text.EditRedo()
 	strcmp(t, text.Get("1.0", "end"), "hello there world")
-	text.EditRedo()
+	text.EditRedo("mark")
 	strcmp(t, text.Get("1.0", "end"), "hellworld")
+	poscmp(t, text.Index("mark"), 1, 4)
 
 	text.EditReset()
 	if text.EditUndo() {

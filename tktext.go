@@ -944,10 +944,18 @@ func (t *TkText) EditSetModified(modified bool) {
 	t.mutex.Unlock()
 }
 
+func (t *TkText) setMarks(index string, name ...string) {
+	for _, n := range name {
+		t.MarkSet(n, index)
+	}
+}
+
 // EditUndo undoes changes to the buffer until a separator is encountered after
 // at least one change, or until the undo stack is empty. Undone changes are
 // pushed onto the redo stack. Returns true if and only if a change was undone.
-func (t *TkText) EditUndo() bool {
+// If mark names are given as arguments, the corresponding marks are set to the
+// position of the undone change.
+func (t *TkText) EditUndo(name ...string) bool {
 	i, loop := 0, true
 	for loop {
 		t.mutex.RLock()
@@ -963,8 +971,10 @@ func (t *TkText) EditUndo() bool {
 			}
 		case insertOp:
 			t.del(v.sp, v.ep, false)
+			t.setMarks(v.sp, name...)
 		case deleteOp:
 			t.insert(v.sp, v.s, false)
+			t.setMarks(v.ep, name...)
 		}
 		if loop {
 			t.mutex.Lock()
@@ -979,7 +989,9 @@ func (t *TkText) EditUndo() bool {
 // EditRedo redoes changes to the buffer until a separator is encountered after
 // at least one change, or until the redo stack is empty. Redone changes are
 // pushed onto the undo stack. Returns true if and only if a change was redone.
-func (t *TkText) EditRedo() bool {
+// If mark names are given as arguments, the corresponding marks are set to the
+// position of the redone change.
+func (t *TkText) EditRedo(name ...string) bool {
 	i, loop, redone := 0, true, false
 	for loop {
 		t.mutex.RLock()
@@ -995,9 +1007,11 @@ func (t *TkText) EditRedo() bool {
 			}
 		case insertOp:
 			t.insert(v.sp, v.s, false)
+			t.setMarks(v.ep, name...)
 			redone = true
 		case deleteOp:
 			t.del(v.sp, v.ep, false)
+			t.setMarks(v.sp, name...)
 			redone = true
 		}
 		if loop {
