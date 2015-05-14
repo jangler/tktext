@@ -366,6 +366,12 @@ func (t *TkText) getPosXY(x, y int) Position {
 	var s string
 	x += t.xScroll
 	y += t.yScroll
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
 
 	if t.wrapMode == None {
 		if pos.Line = y + 1; pos.Line > t.lines.Len() {

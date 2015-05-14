@@ -243,6 +243,7 @@ func TestIndex(t *testing.T) {
 	// @x,y indices
 	text.Replace("1.0", "end", "hello\nworld")
 	text.SetSize(3, 5)
+	poscmp(t, text.Index("@-1,-1"), 1, 0)
 	poscmp(t, text.Index("@0,0"), 1, 0)
 	poscmp(t, text.Index("@8,2"), 2, 5)
 	poscmp(t, text.Index("@0,3"), 2, 0)
