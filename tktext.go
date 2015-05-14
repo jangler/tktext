@@ -38,6 +38,7 @@ const (
 )
 
 var lineCharRegexp = regexp.MustCompile(`^(\d+)\.(\w+)`)
+var xyRegexp = regexp.MustCompile(`^@(-?\d+)\,(-?\d+)`)
 var countRegexp = regexp.MustCompile(`^ ?([+-]) ?(-?\d+) ?([cil]\w*)`)
 var startEndRegexp = regexp.MustCompile(`^ ?(line|word)([se]\w*)`)
 var wordRegexp = regexp.MustCompile(`^\w$`)
@@ -186,9 +187,6 @@ func (t *TkText) BBox(index string) []int {
 	col := len(line) - t.xScroll
 	if t.wrapMode == Char {
 		col %= t.width
-		if col == 0 && line != "" && t.Compare(index, index+" lineend") == 0 {
-			col = t.width
-		}
 	}
 	t.mutex.RUnlock()
 	return []int{col, t.DLineInfo(index)[1]}
@@ -280,21 +278,28 @@ func (t *TkText) CountDisplayLines(index1, index2 string) int {
 func (t *TkText) DLineInfo(index string) []int {
 	var x, y, w int
 	t.mutex.RLock()
-	y = t.CountDisplayLines("1.0", index) - t.yScroll
+	isLineEnd := t.Compare(index, index+" lineend") == 0
+	idxStr := index
+	if !isLineEnd {
+		idxStr += "+1c"
+	}
+	y = t.CountDisplayLines("1.0", idxStr) - t.yScroll
 	w = len(expand(t.Get(index+" linestart", index+" lineend"), t.tabStop))
 	if t.wrapMode == None {
 		x = len(expand(t.Get(index+" linestart", index), t.tabStop))
 	} else { // t.wrapMode == Char
 		line := expand(t.Get(index+" linestart", index), t.tabStop)
 		length := len(line)
-		for length > t.width {
+		for length >= t.width {
 			length -= t.width
 			w -= t.width
-			line = line[t.width:]
 		}
 		x = length
 		if w > t.width {
 			w = t.width
+		}
+		if w == 0 && len(line) > 0 && isLineEnd {
+			y++
 		}
 	}
 	x -= t.xScroll
@@ -356,6 +361,69 @@ func (t *TkText) GetScreenLines() []string {
 	return lines[:n]
 }
 
+func (t *TkText) getPosXY(x, y int) Position {
+	var pos Position
+	var s string
+	x += t.xScroll
+	y += t.yScroll
+
+	if t.wrapMode == None {
+		if pos.Line = y + 1; pos.Line > t.lines.Len() {
+			pos.Line = t.lines.Len()
+		}
+		s = t.getLine(pos.Line).Value.(string)
+		length := len(expand(s, t.tabStop))
+		if pos.Char = x; pos.Char > length {
+			pos.Char = length
+		}
+	} else { // t.wrapMode == Char
+		pos.Line = 1
+		line := t.lines.Front()
+		n := 0
+		s = expand(line.Value.(string), t.tabStop)
+		length := len(s)
+		for n < y {
+			for length > t.width && n < y {
+				length -= t.width
+				s = s[t.width:]
+				n++
+			}
+			if n < y {
+				if line.Next() != nil {
+					line = line.Next()
+					s = expand(line.Value.(string), t.tabStop)
+					length = len(s)
+					n++
+					pos.Line++
+				} else {
+					n = y
+				}
+			}
+		}
+
+		if pos.Char = x; pos.Char > length {
+			pos.Char = length
+		}
+		if pos.Char >= t.width {
+			pos.Char = t.width - 1
+		}
+		s = line.Value.(string)
+		totalLen := len(expand(s, t.tabStop))
+		pos.Char += totalLen - length
+	}
+
+	for i := 0; i < pos.Char; i++ {
+		if s[i] == '\t' {
+			pos.Char -= t.tabStop - 1
+			if pos.Char < i {
+				pos.Char = i
+			}
+		}
+	}
+
+	return pos
+}
+
 // Index parses a string index and returns an equivalent valid Position in the
 // text buffer.
 func (t *TkText) Index(index string) Position {
@@ -374,6 +442,18 @@ func (t *TkText) Index(index string) Position {
 		pos.Line = t.lines.Len()
 		pos.Char = len(t.lines.Back().Value.(string))
 		index = index[3:]
+	} else if match := xyRegexp.FindStringSubmatch(index); match != nil {
+		// @<x>,<y>
+		x, err := strconv.ParseInt(match[1], 10, 0)
+		if err != nil {
+			panic(err)
+		}
+		y, err := strconv.ParseInt(match[2], 10, 0)
+		if err != nil {
+			panic(err)
+		}
+		pos = t.getPosXY(int(x), int(y))
+		index = index[len(match[0]):]
 	} else {
 		// <mark> - pick the longest mark that matches the index
 		prefixLen := 0

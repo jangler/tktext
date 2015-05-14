@@ -34,7 +34,8 @@ func TestParse(t *testing.T) {
 	text := New()
 	strings := []string{"bad", "1.bad", "10000000000000000000.1",
 		"1.0+10000000000000000000c", "1.0+1characters", "1.0 bad",
-		"1.0 linesoup", "1.0 wordeater"}
+		"1.0 linesoup", "1.0 wordeater", "@10000000000000000000,0",
+		"@0,10000000000000000000"}
 	for _, pos := range strings {
 		func() {
 			defer func() {
@@ -67,8 +68,8 @@ func TestBBox(t *testing.T) {
 	}
 	text.Replace("1.0", "end", "hello\tworld")
 	text.Replace("1.0", "end", "hello        world")
-	if vals := text.BBox("end"); vals[0] != 3 || vals[1] != 5 {
-		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], 3, 5)
+	if vals := text.BBox("end"); vals[0] != 0 || vals[1] != 6 {
+		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], 0, 6)
 	}
 }
 
@@ -238,6 +239,21 @@ func TestIndex(t *testing.T) {
 
 	// Chain
 	poscmp(t, text.Index("1.2 linestart lineend +1c wordend -1l"), 1, 5)
+
+	// @x,y indices
+	text.Replace("1.0", "end", "hello\nworld")
+	text.SetSize(3, 5)
+	poscmp(t, text.Index("@0,0"), 1, 0)
+	poscmp(t, text.Index("@8,2"), 2, 5)
+	poscmp(t, text.Index("@0,3"), 2, 0)
+	text.SetWrap(Char)
+	poscmp(t, text.Index("@0,1"), 1, 3)
+	poscmp(t, text.Index("@8,2"), 2, 2)
+	poscmp(t, text.Index("@0,5"), 2, 3)
+	text.Replace("1.0", "end", "\t\thello")
+	poscmp(t, text.Index("@2,1"), 1, 0)
+	poscmp(t, text.Index("@2,2"), 1, 1)
+	poscmp(t, text.Index("@2,5"), 1, 3)
 }
 
 func TestGet(t *testing.T) {
