@@ -23,6 +23,13 @@ commands:
 - xview
 - yview
 
+Notably missing are the search and tag commands, which I don't plan to
+implement unless someone else has a use case for them.
+
+At this point the public API should be stable, but there are probably bugs yet
+to be uncovered. Performance has room for improvement, so benchmarking and
+optimization are likely next steps.
+
 Installation
 ------------
 	go get -u github.com/jangler/tktext

@@ -178,18 +178,19 @@ func comparePos(pos1, pos2 Position) int {
 	return pos1.Char - pos2.Char
 }
 
-// BBox returns a slice containing the row and column numbers of the given
-// index on the screen. The resulting values may be beyond the bounds of the
-// screen, indicating that the index is not visible.
-func (t *TkText) BBox(index string) []int {
+// BBox returns the row and column numbers of the given index on the screen.
+// The resulting values may be beyond the bounds of the screen, indicating
+// that the index is not visible.
+func (t *TkText) BBox(index string) (x, y int) {
 	t.mutex.RLock()
 	line := expand(t.Get(index+" linestart", index), t.tabStop)
-	col := len(line) - t.xScroll
+	x = len(line) - t.xScroll
 	if t.wrapMode == Char {
-		col %= t.width
+		x %= t.width
 	}
 	t.mutex.RUnlock()
-	return []int{col, t.DLineInfo(index)[1]}
+	_, y, _ = t.DLineInfo(index)
+	return
 }
 
 // Compare returns a positive integer if index1 is greater than index2, a
@@ -271,12 +272,11 @@ func (t *TkText) CountDisplayLines(index1, index2 string) int {
 	return n
 }
 
-// DLineInfo returns a slice containing the starting row and column numbers
-// of the display line containing the given index, as well as the width of
-// that line in columns. The resulting values may be beyond the bounds of the
-// screen, indicating that at least part of the line is not visible.
-func (t *TkText) DLineInfo(index string) []int {
-	var x, y, w int
+// DLineInfo the starting row and column numbers of the display line containing
+// the given index, as well as the width of that line in columns. The resulting
+// values may be beyond the bounds of the screen, indicating that at least part
+// of the line is not visible.
+func (t *TkText) DLineInfo(index string) (x, y, width int) {
 	t.mutex.RLock()
 	isLineEnd := t.Compare(index, index+" lineend") == 0
 	idxStr := index
@@ -284,7 +284,7 @@ func (t *TkText) DLineInfo(index string) []int {
 		idxStr += "+1c"
 	}
 	y = t.CountDisplayLines("1.0", idxStr) - t.yScroll
-	w = len(expand(t.Get(index+" linestart", index+" lineend"), t.tabStop))
+	width = len(expand(t.Get(index+" linestart", index+" lineend"), t.tabStop))
 	if t.wrapMode == None {
 		x = len(expand(t.Get(index+" linestart", index), t.tabStop))
 	} else { // t.wrapMode == Char
@@ -292,19 +292,19 @@ func (t *TkText) DLineInfo(index string) []int {
 		length := len(line)
 		for length >= t.width {
 			length -= t.width
-			w -= t.width
+			width -= t.width
 		}
 		x = length
-		if w > t.width {
-			w = t.width
+		if width > t.width {
+			width = t.width
 		}
-		if w == 0 && len(line) > 0 && isLineEnd {
+		if width == 0 && len(line) > 0 && isLineEnd {
 			y++
 		}
 	}
 	x -= t.xScroll
 	t.mutex.RUnlock()
-	return []int{x, y, w}
+	return
 }
 
 // GetScreenLines returns a slice of strings, one for each display line on the
@@ -1034,7 +1034,8 @@ func (t *TkText) EditReset() {
 // out of view, the view is adjusted so that the index is at the edge of the
 // screen. Otherwise, the view is centered on the index.
 func (t *TkText) See(index string) {
-	coords := t.BBox(index)
+	x, y := t.BBox(index)
+	coords := []int{x, y}
 	vars := [][]*int{
 		[]*int{&t.xScroll, &t.width},
 		[]*int{&t.yScroll, &t.height},

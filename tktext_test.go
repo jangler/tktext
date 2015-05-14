@@ -50,26 +50,26 @@ func TestParse(t *testing.T) {
 
 func TestBBox(t *testing.T) {
 	text := New()
-	if vals := text.BBox("1.0"); vals[0] != 0 || vals[1] != 0 {
-		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], 0, 0)
+	if x, y := text.BBox("1.0"); x != 0 || y != 0 {
+		t.Errorf("BBox() == %d, %d; want %d, %d", x, y, 0, 0)
 	}
 	text.SetSize(3, 1)
 	text.Insert("end", "hello\nworld")
 	text.XViewScroll(2)
 	text.YViewScroll(1)
-	if vals := text.BBox("1.0"); vals[0] != -2 || vals[1] != -1 {
-		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], -2, -1)
+	if x, y := text.BBox("1.0"); x != -2 || y != -1 {
+		t.Errorf("BBox() == %d, %d; want %d, %d", x, y, -2, -1)
 	}
 	text.SetWrap(Char)
 	text.XViewMoveTo(0)
 	text.YViewMoveTo(0)
-	if vals := text.BBox("2.4"); vals[0] != 1 || vals[1] != 3 {
-		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], 1, 3)
+	if x, y := text.BBox("2.4"); x != 1 || y != 3 {
+		t.Errorf("BBox() == %d, %d; want %d, %d", x, y, 1, 3)
 	}
 	text.Replace("1.0", "end", "hello\tworld")
 	text.Replace("1.0", "end", "hello        world")
-	if vals := text.BBox("end"); vals[0] != 0 || vals[1] != 6 {
-		t.Errorf("BBox() == %d, %d; want %d, %d", vals[0], vals[1], 0, 6)
+	if x, y := text.BBox("end"); x != 0 || y != 6 {
+		t.Errorf("BBox() == %d, %d; want %d, %d", x, y, 0, 6)
 	}
 }
 
@@ -116,24 +116,24 @@ func TestCount(t *testing.T) {
 
 func TestDLineInfo(t *testing.T) {
 	text := New()
-	if a := text.DLineInfo("1.0"); a[0] != 0 || a[1] != 0 || a[2] != 0 {
-		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 0, 0, 0)
+	if x, y, w := text.DLineInfo("1.0"); x != 0 || y != 0 || w != 0 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", []int{x, y, w}, 0, 0, 0)
 	}
 	text.SetSize(6, 2)
 	text.SetWrap(Char)
 	text.Insert("end", "hello world")
-	if a := text.DLineInfo("1.3"); a[0] != 3 || a[1] != 0 || a[2] != 6 {
-		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 3, 0, 6)
+	if x, y, w := text.DLineInfo("1.3"); x != 3 || y != 0 || w != 6 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", []int{x, y, w}, 3, 0, 6)
 	}
-	if a := text.DLineInfo("1.8"); a[0] != 2 || a[1] != 1 || a[2] != 5 {
-		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 1, 1, 5)
+	if x, y, w := text.DLineInfo("1.8"); x != 2 || y != 1 || w != 5 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", []int{x, y, w}, 1, 1, 5)
 	}
-	if a := text.DLineInfo("1.11"); a[0] != 5 || a[1] != 1 || a[2] != 5 {
-		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 5, 1, 5)
+	if x, y, w := text.DLineInfo("1.11"); x != 5 || y != 1 || w != 5 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", []int{x, y, w}, 5, 1, 5)
 	}
 	text.Replace("1.0", "end", "\thi")
-	if a := text.DLineInfo("1.1"); a[0] != 2 || a[1] != 1 || a[2] != 4 {
-		t.Errorf("BBox() == %#v; want %d, %d, %d", a, 2, 1, 4)
+	if x, y, w := text.DLineInfo("1.1"); x != 2 || y != 1 || w != 4 {
+		t.Errorf("BBox() == %#v; want %d, %d, %d", []int{x, y, w}, 2, 1, 4)
 	}
 }
 
