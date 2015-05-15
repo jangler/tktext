@@ -353,6 +353,9 @@ func TestMarkGravity(t *testing.T) {
 	text.MarkSetGravity("1", Left)
 	text.Insert("1", " world")
 	poscmp(t, text.Index("1"), 1, 5)
+	text.MarkSet("1", "1.0")
+	text.Insert("1", " and ")
+	poscmp(t, text.Index("1"), 1, 0) // Mark should keep gravity after set
 }
 
 func TestMarkNames(t *testing.T) {

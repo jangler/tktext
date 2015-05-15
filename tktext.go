@@ -896,7 +896,11 @@ func (t *TkText) MarkPrevious(index string) string {
 func (t *TkText) MarkSet(name, index string) {
 	pos := t.Index(index)
 	t.mutex.Lock()
-	t.marks[name] = &mark{pos, Right, name}
+	if m := t.marks[name]; m != nil {
+		m.Position = pos
+	} else {
+		t.marks[name] = &mark{pos, Right, name}
+	}
 	t.mutex.Unlock()
 }
 
