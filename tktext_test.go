@@ -353,6 +353,9 @@ func TestMarkGravity(t *testing.T) {
 	text.MarkSetGravity("1", Left)
 	text.Insert("1", " world")
 	poscmp(t, text.Index("1"), 1, 5)
+	text.MarkSet("1", "1.0")
+	text.Insert("1", " and ")
+	poscmp(t, text.Index("1"), 1, 0) // Mark should keep gravity after set
 }
 
 func TestMarkNames(t *testing.T) {
@@ -553,6 +556,24 @@ func TestSee(t *testing.T) {
 	}
 	if top, bot := text.YView(); top != 0 || bot != 0.375 {
 		t.Errorf("YView() == %f, %f; want %f, %f", top, bot, 0.0, 0.375)
+	}
+}
+
+func TestTag(t *testing.T) {
+	text := New()
+	if names := text.TagNames(); len(names) != 0 {
+		t.Errorf("TagNames() == %#v; want []string{}", names)
+	}
+	text.TagDelete("unset") // Nothing bad should happen
+	text.Insert("1.0", "hello, world!")
+	text.TagAdd("hello", "1.0", "1.5")
+	text.TagAdd("nothing", "end", "1.0")
+	if names := text.TagNames(); len(names) != 1 {
+		t.Errorf("TagNames() == %#v; want []string{\"hello\"}", names)
+	}
+	text.TagDelete("hello")
+	if names := text.TagNames(); len(names) != 0 {
+		t.Errorf("TagNames() == %#v; want []string{}", names)
 	}
 }
 

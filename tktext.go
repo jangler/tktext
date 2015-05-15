@@ -85,12 +85,22 @@ func (a markSort) Less(i, j int) bool {
 	return a[i].name < a[j].name
 }
 
+type tagRange struct {
+	start, end Position
+}
+
+type tag struct {
+	ranges []tagRange
+	name   string
+}
+
 // TkText is a text buffer. Internally, the contents are stored as a doubly
 // linked list of line strings.
 type TkText struct {
 	lines                *list.List
 	undoStack, redoStack *list.List
 	marks                map[string]*mark
+	tags                 map[string]*tag
 	mutex                *sync.RWMutex
 	undo, modified       bool
 	saveEndPos           Position
@@ -107,6 +117,7 @@ func New() *TkText {
 		list.New(),
 		list.New(), list.New(),
 		make(map[string]*mark),
+		make(map[string]*tag),
 		&sync.RWMutex{},
 		true, false,
 		Position{1, 0},
@@ -896,7 +907,11 @@ func (t *TkText) MarkPrevious(index string) string {
 func (t *TkText) MarkSet(name, index string) {
 	pos := t.Index(index)
 	t.mutex.Lock()
-	t.marks[name] = &mark{pos, Right, name}
+	if m := t.marks[name]; m != nil {
+		m.Position = pos
+	} else {
+		t.marks[name] = &mark{pos, Right, name}
+	}
 	t.mutex.Unlock()
 }
 
@@ -1107,6 +1122,39 @@ func (t *TkText) SetWrap(mode WrapMode) {
 	t.mutex.Lock()
 	t.wrapMode = mode
 	t.mutex.Unlock()
+}
+
+// TagAdd associates a tag with the given name with the text from index1 to
+// index2. A tag may be associated with any number of such ranges. If there is
+// no text in the given range, nothing is done.
+func (t *TkText) TagAdd(name, index1, index2 string) {
+	pos1, pos2 := t.Index(index1), t.Index(index2)
+	if comparePos(pos1, pos2) < 0 {
+		if _, ok := t.tags[name]; !ok {
+			t.tags[name] = &tag{make([]tagRange, 0), name}
+		}
+		tg := t.tags[name]
+		tg.ranges = append(tg.ranges, tagRange{pos1, pos2})
+	}
+}
+
+// TagDelete deletes all tag information for each of the given tag names.
+func (t *TkText) TagDelete(name ...string) {
+	for _, n := range name {
+		delete(t.tags, n)
+	}
+}
+
+// TagNames returns a slice of names of all tags that are set for the buffer,
+// even if the tags are not associated with any text.
+func (t *TkText) TagNames() []string {
+	names := make([]string, len(t.tags))
+	i := 0
+	for name := range t.tags {
+		names[i] = name
+		i++
+	}
+	return names
 }
 
 func (t *TkText) maxLine() int {
