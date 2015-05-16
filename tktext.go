@@ -572,14 +572,14 @@ func (t *TkText) Index(index string) Position {
 // Get returns the text between two indices as a string. If index1 is after
 // index2, an empty string will be returned.
 func (t *TkText) Get(index1, index2 string) string {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+
 	// Parse indices
 	start, end := t.Index(index1), t.Index(index2)
 	if comparePos(start, end) >= 0 {
 		return ""
 	}
-
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
 
 	// Find starting line
 	i, line := 1, t.lines.Front()
@@ -731,8 +731,8 @@ func (t *TkText) insert(index, s string, undo bool) {
 		if m.Line > start.Line {
 			m.Line += len(lines) - 1
 		} else if m.Line == start.Line && m.Char >= start.Char {
-			m.Line += len(lines) - 1
 			if m.gravity == Right || m.Char > start.Char {
+				m.Line += len(lines) - 1
 				if len(lines) == 1 {
 					m.Char += len(s)
 				} else {
