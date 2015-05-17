@@ -1160,8 +1160,8 @@ func (t *TkText) XViewMoveTo(fraction float64) {
 func (t *TkText) XViewScroll(chars int) {
 	t.mutex.Lock()
 	t.xScroll += chars
-	if maxLen := t.maxLine(); t.xScroll > maxLen {
-		t.xScroll = maxLen
+	if maxLen := t.maxLine(); t.xScroll > maxLen-t.width {
+		t.xScroll = maxLen - t.width
 	} else if t.xScroll < 0 {
 		t.xScroll = 0
 	}
@@ -1197,8 +1197,8 @@ func (t *TkText) YViewScroll(lines int) {
 	nLines := t.CountDisplayLines("1.0", "end") + 1
 	t.mutex.Lock()
 	t.yScroll += lines
-	if t.yScroll > nLines {
-		t.yScroll = nLines
+	if t.yScroll > nLines-t.height {
+		t.yScroll = nLines - t.height
 	} else if t.yScroll < 0 {
 		t.yScroll = 0
 	}

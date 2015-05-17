@@ -193,7 +193,8 @@ func TestGetScreenLines(t *testing.T) {
 	text.Insert("3.0", "\n")
 	text.YViewScroll(4)
 	lines = text.GetScreenLines()
-	if len(lines) != 2 || lines[0] != "" || lines[1] != "zebra" {
+	if len(lines) != 3 || lines[0] != "us" || lines[1] != "" ||
+		lines[2] != "zebra" {
 		t.Errorf("GetScreenLines returned %#v for y-scrolled buffer", lines)
 	}
 }
@@ -610,8 +611,8 @@ func TestXView(t *testing.T) {
 		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.1, 1.0)
 	}
 	text.XViewScroll(10)
-	if left, right := text.XView(); left != 1 || right != 1 {
-		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 1.0, 1.0)
+	if left, right := text.XView(); left != 0.1 || right != 1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", left, right, 0.1, 1.0)
 	}
 	text.XViewScroll(-11)
 	if left, right := text.XView(); left != 0 || right != 0.9 {
@@ -639,8 +640,8 @@ func TestYView(t *testing.T) {
 		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 0.5, 1.0)
 	}
 	text.YViewScroll(10)
-	if top, bot := text.YView(); top != 1 || bot != 1 {
-		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 1.0, 1.0)
+	if top, bot := text.YView(); top != 0.5 || bot != 1 {
+		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 0.5, 1.0)
 	}
 	text.YViewScroll(-10)
 	if top, bot := text.YView(); top != 0 || bot != 0.5 {
