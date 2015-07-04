@@ -1,7 +1,10 @@
 package tktext
 
 import (
+	"fmt"
+	"math/rand"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -646,5 +649,96 @@ func TestYView(t *testing.T) {
 	text.YViewScroll(-10)
 	if top, bot := text.YView(); top != 0 || bot != 0.5 {
 		t.Errorf("XView() == %f, %f; want %f, %f", top, bot, 0.0, 0.5)
+	}
+}
+
+func randBuffer(numLines int) *TkText {
+	buf := New()
+	lines := make([]string, numLines)
+	line := make([]byte, 80)
+	for i := 0; i < numLines; i++ {
+		lineLen := rand.Int() % 80
+		for j := 0; j < lineLen; j++ {
+			line[j] = byte(0x20 + rand.Int()%0x60)
+		}
+		lines[i] = string(line[:lineLen])
+	}
+	buf.Insert("end", strings.Join(lines, "\n"))
+	return buf
+}
+
+func randIndexes(b *TkText, n, maxLines int) []string {
+	indexes := make([]string, n*2)
+	for i := 0; i < n*2; i += 2 {
+		begin := fmt.Sprintf("%d.%d", 1 + rand.Int()%b.lines.Len(),
+			rand.Int() % 80)
+		end := fmt.Sprintf("%d.%d", 1 + rand.Int()%b.lines.Len(),
+			rand.Int() % 80)
+		if b.Compare(end, begin) < 0 {
+			begin, end = end, begin
+		}
+		if b.Index(end).Line-b.Index(begin).Line <= maxLines {
+			indexes[i], indexes[i+1] = begin, end
+		} else {
+			i -= 2
+		}
+	}
+	return indexes
+}
+
+// Average time to delete text of up to 25 lines at a random index in a
+// 2000-line buffer.
+//
+// 2015/05/18 19:29 - 100000 ns/op
+func BenchmarkBufferDelete(b *testing.B) {
+	buf := randBuffer(2000)
+	indexes := randIndexes(buf, b.N, 25)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		text := buf.Get(indexes[i*2], indexes[i*2+1])
+		b.StartTimer()
+		buf.Delete(indexes[i*2], indexes[i*2+1])
+		b.StopTimer()
+		buf.Insert(indexes[i*2], text)
+		b.StartTimer()
+	}
+}
+
+// Average time to get text of up to 25 lines at a random index in a 2000-line
+// buffer.
+//
+// 2015/05/18 19:29 - 44000 ns/op - change benchmark
+func BenchmarkBufferGet(b *testing.B) {
+	buf := randBuffer(2000)
+	indexes := randIndexes(buf, b.N, 25)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		buf.Get(indexes[i*2], indexes[i*2+1])
+	}
+}
+
+// Average time to insert text of up to 25 lines at a random index in a
+// 2000-line buffer.
+//
+// 2015/05/18 19:29 - 73000 ns/op - change benchmark
+func BenchmarkBufferInsert(b *testing.B) {
+	buf := randBuffer(2000)
+	indexes := randIndexes(buf, b.N, 25)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		text := buf.Get(indexes[i*2], indexes[i*2+1])
+		b.StartTimer()
+		buf.Insert(indexes[i*2], text)
+		b.StopTimer()
+		buf.Delete(indexes[i*2], indexes[i*2+1])
+		b.StartTimer()
 	}
 }
