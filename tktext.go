@@ -19,6 +19,8 @@ import (
 	"sync"
 )
 
+// BUG(jangler): Unicode is not handled correctly in some situations.
+
 // Gravity determines the behavior of a mark during insertions at its position.
 // Right gravity is the default.
 type Gravity uint8

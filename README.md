@@ -38,3 +38,11 @@ Documentation
 -------------
 - [GoDoc](http://godoc.org/github.com/jangler/tktext)
 - [Tcl/Tk text manual page](http://www.tcl.tk/man/tcl8.5/TkCmd/text.htm)
+
+Bugs
+----
+Unicode is not handled correctly in some situations. See
+<http://godoc.org/github.com/jangler/edit> for a similar package that handles
+Unicode correctly in addition to being faster and offering built-in
+functionality for syntax highlighting (but lacking some niceties of the Tk
+text widget interface).
